@@ -102,11 +102,12 @@ function makeMockElement(id = '', tag = 'div') {
   };
 }
 
-const domIds = ['panel', 'panelWrap', 'sheet', 'modal', 'toast', 'hDay', 'hEv', 'hMoney', 'hMoneyChip', 'tdot', 'speed', 'zall', 'ttl', 'subttl', 'hClock', 'auM', 'auS', 'btnSkipOpen', 'world-hud', 'barPills', 'skillDock', 'liveEventCard', 'btnQual', 'btnAch', 'achCnt', 'mobTabs', 'sheetGrabber'];
+const domIds = ['panel', 'panelWrap', 'sheet', 'modal', 'toast', 'hDay', 'hEv', 'hMoney', 'hMoneyChip', 'tdot', 'speed', 'zall', 'ttl', 'subttl', 'hClock', 'auM', 'auS', 'btnSkipOpen', 'world-hud', 'barPills', 'skillDock', 'liveEventCard', 'btnQual', 'btnAch', 'achCnt', 'mobTabs', 'sheetGrabber', 'artSwitch', 'btnLight', 'btnRoof'];
 const elements = new Map(domIds.map((id) => [id, makeMockElement(id)]));
 
 const storeMap = new Map();
 globalThis.window = {
+  location: { href: 'http://localhost:8173/?style=diorama', search: '?style=diorama' },
   localStorage: {
     getItem: (k) => storeMap.get(k) ?? null,
     setItem: (k, v) => storeMap.set(k, String(v)),
@@ -116,6 +117,7 @@ globalThis.window = {
 
 globalThis.document = {
   hidden: false,
+  documentElement: makeMockElement('html', 'html'),
   getElementById: (id) => {
     if (!elements.has(id)) elements.set(id, makeMockElement(id));
     return elements.get(id);

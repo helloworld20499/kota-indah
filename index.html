@@ -22,7 +22,11 @@
 <header class="top">
   <div class="brand">
     <svg width="28" height="28" viewBox="0 0 30 30" fill="none" stroke="#E8B959" stroke-width="1.7" stroke-linecap="round"><path d="M8 5h14l-2 9a5 5 0 0 1-10 0z"/><path d="M15 19v6M10 25h10"/></svg>
-    <div><b>Kota Indah 夜街</b><i>Jl. Komp. Ruko Kota Indah · 3D Diorama</i></div>
+    <div><b>Kota Indah 夜街</b><i>Jl. Komp. Ruko Kota Indah · 双画风 3D</i></div>
+  </div>
+  <div class="art-switch" id="artSwitch">
+    <button data-art="diorama" class="on">🎨 玩具沙盘</button>
+    <button data-art="storybook">✏️ 手绘绘本</button>
   </div>
   <div class="bar-pills" id="barPills"></div>
   <div class="chip"><span id="hDay"></span></div>
@@ -72,6 +76,8 @@
 
     <div class="cam-tools">
       <button id="zall" style="display:none">← 全景</button>
+      <button id="btnLight" title="切换夜景亮度 (明亮/氛围/白昼)">💡 夜景:明亮</button>
+      <button id="btnRoof" title="切换半剖观察 / 彩色屋顶">🏠 剖面观察</button>
       <button id="btnRot" title="旋转视角 90° (R)">↻ 旋转 90°</button>
       <button id="btnCut" class="on" title="自动透视遮挡墙体">透视墙体</button>
     </div>

@@ -19,6 +19,9 @@ import {
 import { Scene3D } from './scene3d.js';
 import { World3D } from './world3d.js';
 import { Actors3D } from './actors3d.js';
+import {
+  ART_STYLES, LIGHT_MODES, applyDomTheme, getInitialArtStyle, saveArtStyle,
+} from './themes.js';
 import { live, priceHint, renderLiveEvent, renderPanel, showAchievementsModal, showBriefModal, showEndDayModal, toast } from './ui.js';
 
 const $ = (id) => document.getElementById(id);
@@ -385,6 +388,66 @@ function initUIEvents() {
     toast(`3D 画质已切至 ${QLABELS[mode].slice(3)}（当前渲染：${scene3d.effectiveQuality}）`);
   });
 
+  const setArtStyle = (styleId) => {
+    const id = ART_STYLES[styleId] ? styleId : 'diorama';
+    saveArtStyle(id);
+    applyDomTheme(id);
+    if (typeof window !== 'undefined' && window.history?.replaceState) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('style', id);
+      window.history.replaceState(null, '', url.toString());
+    }
+    scene3d?.setArtStyle(id);
+    world3d?.buildAll(G);
+    document.querySelectorAll('#artSwitch button').forEach((b) => {
+      b.classList.toggle('on', b.dataset.art === id);
+    });
+    const btnRoof = $('btnRoof');
+    if (btnRoof) btnRoof.style.display = id === 'diorama' ? '' : 'none';
+    toast(`已切换至「${ART_STYLES[id].label}」画风`);
+  };
+  window.__setArt = setArtStyle;
+
+  document.querySelectorAll('#artSwitch button').forEach((b) => {
+    b.classList.toggle('on', b.dataset.art === scene3d.artStyle);
+  });
+  if ($('btnRoof')) $('btnRoof').style.display = scene3d.artStyle === 'diorama' ? '' : 'none';
+
+  $('artSwitch')?.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-art]');
+    if (!b || !scene3d) return;
+    AU.sfx('click-soft-tap');
+    if (b.dataset.art !== scene3d.artStyle) setArtStyle(b.dataset.art);
+  });
+
+  const LLABELS = { bright: '💡 夜景:明亮', cozy: '💡 夜景:氛围', day: '☀️ 白昼常亮' };
+  const btnLight = $('btnLight');
+  if (btnLight) {
+    btnLight.textContent = LLABELS[scene3d.lightMode] || LLABELS.bright;
+    btnLight.addEventListener('click', (e) => {
+      AU.sfx('click-soft-tap');
+      const idx = (LIGHT_MODES.indexOf(scene3d.lightMode) + 1) % LIGHT_MODES.length;
+      const mode = LIGHT_MODES[idx];
+      scene3d.setLightMode(mode);
+      e.currentTarget.textContent = LLABELS[mode];
+      toast(`光照模式：${LLABELS[mode].replace(/^[^\s]+\s*/, '')}`);
+    });
+  }
+
+  const btnRoof = $('btnRoof');
+  if (btnRoof) {
+    btnRoof.classList.toggle('on', scene3d.roofMode);
+    btnRoof.textContent = scene3d.roofMode ? '🏠 屋顶外观' : '🏠 剖面观察';
+    btnRoof.addEventListener('click', (e) => {
+      AU.sfx('click-soft-tap');
+      scene3d.roofMode = !scene3d.roofMode;
+      e.currentTarget.classList.toggle('on', scene3d.roofMode);
+      e.currentTarget.textContent = scene3d.roofMode ? '🏠 屋顶外观' : '🏠 剖面观察';
+      world3d.buildAll(G);
+      toast(scene3d.roofMode ? '已显示彩色屋顶外观' : '已切换为无遮挡剖面观察');
+    });
+  }
+
   // Mobile 3-snap-point draggable bottom sheet
   const panelWrap = $('panelWrap');
   const grabber = $('sheetGrabber');
@@ -542,8 +605,10 @@ function boot() {
     onAchievement: () => {},
   });
 
+  const artStyle = getInitialArtStyle();
+  applyDomTheme(artStyle);
   const vp = $('viewport3d');
-  scene3d = new Scene3D(vp);
+  scene3d = new Scene3D(vp, artStyle);
   world3d = new World3D(scene3d);
   actors3d = new Actors3D(scene3d, $('world-hud'));
   world3d.buildAll(G);

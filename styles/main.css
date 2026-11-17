@@ -1,20 +1,39 @@
-:root {
-  --bg: #121016;
-  --panel: rgba(22, 19, 27, 0.9);
-  --card: rgba(34, 29, 41, 0.88);
-  --card-hi: rgba(46, 39, 55, 0.95);
-  --line: rgba(232, 185, 89, 0.22);
-  --line-soft: rgba(255, 245, 228, 0.1);
-  --ink: #f6f0e4;
-  --mute: #aba092;
-  --gold: #e8b959;
-  --coral: #ff5c54;
-  --teal: #3dd6a5;
+:root,
+:root[data-theme="diorama"] {
+  --bg: #2A201B;
+  --panel: rgba(38, 28, 23, 0.91);
+  --card: rgba(54, 40, 33, 0.9);
+  --card-hi: rgba(68, 51, 42, 0.96);
+  --line: rgba(242, 184, 75, 0.28);
+  --line-soft: rgba(255, 240, 220, 0.12);
+  --ink: #FAF2E6;
+  --hand-ink: #EBDEC9;
+  --mute: #BCAA99;
+  --gold: #F2B84B;
+  --coral: #E45E4A;
+  --teal: #57B87D;
   --sky: #6ea8ff;
   --purple: #b37ef5;
   --serif: "Young Serif", "Songti SC", "Noto Serif SC", Georgia, serif;
   --sans: "DM Sans", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   --hand: "Patrick Hand", "Kaiti SC", "STKaiti", cursive;
+}
+
+:root[data-theme="storybook"] {
+  --bg: #FAF5E8;
+  --panel: rgba(247, 242, 230, 0.96);
+  --card: #FDFBF4;
+  --card-hi: #FFFDF8;
+  --line: #CDBFA6;
+  --line-soft: rgba(47, 38, 30, 0.16);
+  --ink: #2F261E;
+  --hand-ink: #4A3E32;
+  --mute: #75685A;
+  --gold: #B5362F;
+  --coral: #C8574B;
+  --teal: #3F8F7B;
+  --sky: #4A5A86;
+  --purple: #7A5A8C;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -327,7 +346,7 @@ button {
   text-transform: uppercase;
 }
 .lbl:first-child { margin-top: 0; }
-.hand { font-family: var(--hand); font-size: 16px; line-height: 1.38; margin: 0 0 6px; color: #ddd3c3; }
+.hand { font-family: var(--hand); font-size: 16px; line-height: 1.38; margin: 0 0 6px; color: var(--hand-ink); }
 
 .btn {
   display: block;
@@ -659,9 +678,93 @@ select.xfer {
   padding: 9px 11px;
   margin-top: 8px;
   font-size: 12.5px;
-  color: #f4e6ca;
+  color: var(--ink);
 }
 .coach-box b { color: var(--gold); display: block; margin-bottom: 3px; }
+
+/* Dual Art Style Switcher & Storybook Light Theme Overrides */
+.art-switch {
+  display: flex;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.art-switch button {
+  padding: 4px 11px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mute);
+  white-space: nowrap;
+}
+.art-switch button.on {
+  background: var(--gold);
+  color: #16131b;
+}
+
+[data-theme="storybook"] .top {
+  background: rgba(247, 242, 230, 0.94);
+  border-bottom: 1px solid #CDBFA6;
+}
+[data-theme="storybook"] .art-switch button.on,
+[data-theme="storybook"] .speed button.on,
+[data-theme="storybook"] .seg button.on {
+  background: #2F261E;
+  color: #FAF5E8;
+}
+[data-theme="storybook"] .hud-top-left,
+[data-theme="storybook"] .cam-tools button,
+[data-theme="storybook"] .tl-wrap,
+[data-theme="storybook"] .skill-dock,
+[data-theme="storybook"] .live-event {
+  background: rgba(250, 245, 232, 0.93);
+  border-color: #2F261E;
+  color: #2F261E;
+  box-shadow: 2px 3px 0 rgba(47, 38, 30, 0.14);
+}
+[data-theme="storybook"] .live-event p { color: #4A3E32; }
+[data-theme="storybook"] .modal .sheet {
+  background: #FAF5E8;
+  border: 1.5px solid #2F261E;
+  box-shadow: 5px 6px 0 rgba(47, 38, 30, 0.18);
+}
+[data-theme="storybook"] .whud-pill.shop-lbl {
+  background: rgba(250, 245, 232, 0.96);
+  color: #2F261E;
+  border: 1.2px solid #2F261E;
+  font-family: var(--hand);
+  font-size: 13px;
+  box-shadow: 2px 2px 0 rgba(47, 38, 30, 0.15);
+}
+[data-theme="storybook"] .whud-pill.shop-lbl::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 1px;
+  height: 10px;
+  background: #2F261E;
+  opacity: 0.65;
+}
+[data-theme="storybook"] .whud-pill.shop-lbl.mine {
+  background: #B5362F;
+  color: #FAF5E8;
+  border-color: #2F261E;
+}
+[data-theme="storybook"] .whud-pill.shop-lbl.empty {
+  background: #FAF5E8;
+  color: #B5362F;
+  border-color: #B5362F;
+}
+[data-theme="storybook"] .toast {
+  background: #2F261E;
+  color: #FAF5E8;
+}
+[data-theme="storybook"] .pips i { background: #DDD2BC; }
+[data-theme="storybook"] .ebar { background: #E6DEC8; }
+[data-theme="storybook"] .tog { background: #F2ECDC; border-color: #CDBFA6; color: #5C4E41; }
+[data-theme="storybook"] .tog.on { background: #3F8F7B; border-color: #3F8F7B; color: #fff; }
+[data-theme="storybook"] .card { box-shadow: 0 1px 0 rgba(47, 38, 30, 0.06); }
 
 /* Mobile Responsive Layout */
 @media (max-width: 900px) {
@@ -670,6 +773,7 @@ select.xfer {
   .brand b { font-size: 15px; }
   .chip { padding: 4px 9px; font-size: 12px; }
   .aud button.pill-ico { padding: 0 7px; font-size: 11px; }
+  .art-switch button { padding: 3px 6px; font-size: 11px; }
   .app {
     display: block;
     height: calc(100dvh - 46px);

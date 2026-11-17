@@ -704,17 +704,20 @@ export class Actors3D {
     }
 
     if (zoom < 1.55 && G.view == null) {
+      const isStorybook = this.scene3d.artStyle === 'storybook';
       for (let i = 0; i < G.lots.length; i++) {
         const l = G.lots[i];
         if (l.top) continue;
         const c = Lw(l, l.L / 2, l.D / 2);
-        let label = l.name;
+        let label = isStorybook ? `${l.name} · ${lit(l) ? '营业' : '打烊'}` : l.name;
         let cls = 'shop-lbl';
         if (l.kind === 'empty') {
-          label = `招租 ${fm(l.cost)}`;
+          label = isStorybook ? `空铺 · 招租 ${fm(l.cost)}` : `招租 ${fm(l.cost)}`;
           cls = 'shop-lbl empty';
         } else if (l.kind === 'mine') {
-          label = `★ ${l.name} · ${l._g.length}/${l._seats?.length || 0}`;
+          label = isStorybook
+            ? `★ ${l.name} · ${barOpen() ? `营业 ${l._g.length}/${l._seats?.length || 0}` : '17:00 开'}`
+            : `★ ${l.name} · ${l._g.length}/${l._seats?.length || 0}`;
           cls = 'shop-lbl mine';
         }
         this._pushHud(state, c[0], 2.45, c[1], label, cls, onSelectLot ? () => onSelectLot(l.i) : null);

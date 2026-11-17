@@ -30,7 +30,7 @@ export const ART_STYLES = {
     sub: '钢笔淡彩半剖风',
     dayBg: '#FAF5E8',
     duskBg: '#EBDCCB',
-    nightBg: '#3E4B72',
+    nightBg: '#7884A3',
     slabTop: '#EAE3D0',
     slabEdge: '#CFC4AD',
     earthRim: '#A88E68',

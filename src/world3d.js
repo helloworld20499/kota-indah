@@ -7,6 +7,7 @@ import {
 import { ART_STYLES } from './themes.js';
 import {
   buildPearTreeGeom, buildStaticBikeGeom, buildStaticSedanGeom,
+  makeGridPaperTexture, makeInteriorMuralTexture, makePebblePlinthTexture,
 } from './meshes3d.js';
 import { curEls, seatList, wsSpots } from './state.js';
 import { barOpen, lit, skillActive } from './sim.js';
@@ -135,6 +136,14 @@ export class World3D {
       roughness: 0.85,
       metalness: 0.08,
     });
+    this.inkLineMat = new THREE.LineBasicMaterial({ color: '#2F261E', transparent: true, opacity: 0.65 });
+    this.gridPaperTex = makeGridPaperTexture();
+    this.pebbleTex = makePebblePlinthTexture();
+    this.muralTex = {
+      bar: makeInteriorMuralTexture('bar'),
+      food: makeInteriorMuralTexture('food'),
+      mart: makeInteriorMuralTexture('mart'),
+    };
 
     this.selRing = this._createSelectionRing();
     this.root.add(this.selRing);
@@ -250,6 +259,7 @@ export class World3D {
     const groundMat = this.getMat(theme.slabTop, { rough: 0.9 });
     const ground = new THREE.Mesh(new THREE.BoxGeometry(W, 0.45, D), groundMat);
     ground.position.set(cx, -0.225, cz);
+    ground.castShadow = true;
     ground.receiveShadow = true;
     g.add(ground);
 
@@ -258,10 +268,26 @@ export class World3D {
     rim.position.set(cx, -0.45, cz);
     g.add(rim);
 
-    const earthMat = this.getMat(theme.earthRim, { rough: 0.95 });
-    const earth = new THREE.Mesh(new THREE.BoxGeometry(W - 0.25, 1.25, D - 0.25), earthMat);
-    earth.position.set(cx, -1.18, cz);
+    const earthMat = theme.id === 'storybook'
+      ? new THREE.MeshStandardMaterial({ map: this.pebbleTex, roughness: 0.92 })
+      : this.getMat(theme.earthRim, { rough: 0.95 });
+    const earth = new THREE.Mesh(new THREE.BoxGeometry(W - 0.2, 1.28, D - 0.2), earthMat);
+    earth.position.set(cx, -1.16, cz);
+    earth.castShadow = true;
     g.add(earth);
+
+    if (theme.id === 'storybook') {
+      const paper = new THREE.Mesh(
+        new THREE.PlaneGeometry(240, 240),
+        new THREE.MeshStandardMaterial({ map: this.gridPaperTex, roughness: 0.96 }),
+      );
+      paper.rotation.x = -Math.PI / 2;
+      paper.position.set(cx, -1.85, cz);
+      paper.receiveShadow = true;
+      g.add(paper);
+      earth.add(new THREE.LineSegments(new THREE.EdgesGeometry(earth.geometry, 25), this.inkLineMat));
+      ground.add(new THREE.LineSegments(new THREE.EdgesGeometry(ground.geometry, 25), this.inkLineMat));
+    }
 
     // Sidewalks & lots pads
     const swGeoms = [];
@@ -499,6 +525,9 @@ export class World3D {
       const staticMesh = new THREE.Mesh(merged, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82 }));
       staticMesh.castShadow = true;
       staticMesh.receiveShadow = true;
+      if (theme.inkEdges) {
+        staticMesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(staticMesh.geometry, 32), this.inkLineMat));
+      }
       g.add(staticMesh);
     }
   }
@@ -695,6 +724,7 @@ export class World3D {
       board.position.set(bx, 1.05, by);
       board.castShadow = true;
       grp.add(post, board);
+      if (theme.inkEdges) this._applyInkEdges(grp);
       this.lotMeta[l.i] = { cutWalls, roomWindows, signMat, floorMat, roofGroup, djCone: null, clubLasers: [] };
       return;
     }
@@ -705,6 +735,27 @@ export class World3D {
       : BARPAL[l.lay]?.sofa || '#A8403A';
     const interiorFX = this._buildInterior(grp, l, els, sofaColor);
 
+    // Storybook hand-drawn back-wall mural (bottle racks / cafe chalkboard / mart shelves)
+    if (theme.id === 'storybook' && !l.top) {
+      const mKind = l.type === 'food' ? 'food' : l.type === 'mart' ? 'mart' : 'bar';
+      const mw = Math.min(4.0, Math.max(1.8, L - 1.1));
+      const mural = new THREE.Mesh(
+        new THREE.PlaneGeometry(mw, 1.05),
+        new THREE.MeshStandardMaterial({ map: this.muralTex[mKind], roughness: 0.9 }),
+      );
+      if (tallOnY0) {
+        mural.position.set(x0 + L / 2, 0.95, y0 + 0.18);
+      } else {
+        mural.rotation.y = Math.PI / 2;
+        mural.position.set(x0 + 0.18, 0.95, y1 - L / 2);
+      }
+      facadeGroup.add(mural);
+    }
+
+    if (theme.inkEdges) {
+      this._applyInkEdges(grp);
+    }
+
     this.lotMeta[l.i] = {
       cutWalls,
       roomWindows,
@@ -714,6 +765,22 @@ export class World3D {
       djCone: interiorFX.djCone,
       clubLasers: interiorFX.clubLasers,
     };
+  }
+
+  _applyInkEdges(grp) {
+    const targets = [];
+    grp.traverse((obj) => {
+      if (!obj.isMesh || !obj.geometry) return;
+      if (obj.material && obj.material.blending === THREE.AdditiveBlending) return;
+      if (obj.geometry.type === 'PlaneGeometry') return;
+      if (obj.position.y < 0.12 && obj.scale.y <= 1) return;
+      targets.push(obj);
+    });
+    for (let i = 0; i < targets.length; i++) {
+      const m = targets[i];
+      const edges = new THREE.EdgesGeometry(m.geometry, 26);
+      m.add(new THREE.LineSegments(edges, this.inkLineMat));
+    }
   }
 
   _wallIntervals(span, doorUs) {

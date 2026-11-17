@@ -57,8 +57,12 @@ console.log(`[1/4] Static imports & assets OK (${filesToScan.length} JS files)`)
 const noop = () => {};
 const mockCtx2D = () => ({
   clearRect: noop, fillRect: noop, strokeRect: noop, fillText: noop,
-  beginPath: noop, moveTo: noop, lineTo: noop, stroke: noop, fill: noop,
+  beginPath: noop, closePath: noop, moveTo: noop, lineTo: noop,
+  arc: noop, arcTo: noop, ellipse: noop, quadraticCurveTo: noop, bezierCurveTo: noop, roundRect: noop,
+  stroke: noop, fill: noop, clip: noop, save: noop, restore: noop,
+  translate: noop, scale: noop, rotate: noop, setLineDash: noop,
   createRadialGradient: () => ({ addColorStop: noop }),
+  createLinearGradient: () => ({ addColorStop: noop }),
   fillStyle: '', strokeStyle: '', lineWidth: 1, font: '', textAlign: 'center', textBaseline: 'middle', globalAlpha: 1,
 });
 
@@ -165,11 +169,15 @@ console.log(`[2/4] World3D lot footprints & geometry verified for all ${G.lots.l
 
 const actors3d = new Actors3D(fakeScene3D, elements.get('world-hud'));
 [
-  actors3d.legMesh, actors3d.torsoMesh, actors3d.headMesh, actors3d.hairMesh,
-  actors3d.badgeMesh, actors3d.carBodyMesh, actors3d.carCabinMesh, actors3d.motoMesh, actors3d.glowMesh,
+  actors3d.legLMesh, actors3d.legRMesh, actors3d.armLMesh, actors3d.armRMesh,
+  actors3d.dressMesh, actors3d.coatMesh, actors3d.headMesh, actors3d.hairMesh,
+  actors3d.paperBodyMesh, actors3d.paperHeadMesh, actors3d.paperHairMesh,
+  actors3d.badgeMesh, actors3d.carBodyMesh, actors3d.motoMesh, actors3d.glowMesh,
 ].forEach((m, idx) => {
   assert(m.instanceColor !== null, `InstancedMesh #${idx} missing instanceColor attribute!`);
 });
+assert(actors3d.carTrimMesh.geometry.attributes.color != null, 'carTrimMesh missing vertex color');
+assert(actors3d.motoDetailMesh.geometry.attributes.color != null, 'motoDetailMesh missing vertex color');
 
 // Run 7-day sim & verify Actors3D across Afternoon, Night, Rain, and Raid
 const simSummary = simHeadlessDays(7);

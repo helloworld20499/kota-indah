@@ -5,6 +5,9 @@ import {
   LB, Lw, hsh, pickC,
 } from './config.js';
 import { ART_STYLES } from './themes.js';
+import {
+  buildPearTreeGeom, buildStaticBikeGeom, buildStaticSedanGeom,
+} from './meshes3d.js';
 import { curEls, seatList, wsSpots } from './state.js';
 import { barOpen, lit, skillActive } from './sim.js';
 
@@ -441,31 +444,27 @@ export class World3D {
       this.gateArms.push({ pivot, yMid: (ya + yb) / 2, open: 0 });
     });
 
-    // Static street props (parked cars, bikes, cones, trees, food cart, fruit stall)
+    // Static street props (sculpted parked cars, scooters, cones, pear/round trees, food cart, fruit stall)
+    const theme = ART_STYLES[this.scene3d.artStyle || 'diorama'];
     const addCarGeom = (x, y, ax, c) => {
-      const w = ax ? 0.84 : 1.9;
-      const d = ax ? 1.9 : 0.84;
-      pushBox(x, 0.45, y, w, 0.58, d, c);
-      pushBox(x, 0.94, y, ax ? 0.72 : 1.05, 0.42, ax ? 1.05 : 0.72, '#dce2e1');
-      pushBox(x - (ax ? 0.3 : 0.6), 0.16, y - (ax ? 0.6 : 0.3), 0.22, 0.22, 0.22, '#222024');
-      pushBox(x + (ax ? 0.3 : 0.6), 0.16, y + (ax ? 0.6 : 0.3), 0.22, 0.22, 0.22, '#222024');
+      const cg = buildStaticSedanGeom(c, ax);
+      cg.translate(x, 0.04, y);
+      geoms.push(cg);
     };
+    const treeProto = buildPearTreeGeom(theme.treeMode);
 
     DECOR.forEach((d) => {
       if (d.t === 'car') addCarGeom(d.x, d.y, d.ax, d.c);
       else if (d.t === 'bike') {
-        pushBox(d.x, 0.32, d.y, 0.24, 0.4, 0.56, d.c);
-        pushBox(d.x, 0.56, d.y - 0.14, 0.34, 0.12, 0.12, '#282320');
+        const bg = buildStaticBikeGeom(d.c);
+        bg.translate(d.x, 0.04, d.y);
+        geoms.push(bg);
       } else if (d.t === 'cone') {
         pushBox(d.x, 0.18, d.y, 0.26, 0.36, 0.26, '#e87236');
       } else if (d.t === 'tree') {
-        pushBox(d.x, 0.9, d.y, 0.26, 1.8, 0.26, '#7a5234');
-        const crown = new THREE.DodecahedronGeometry(1.05, 1);
-        crown.translate(d.x, 2.3, d.y);
-        geoms.push(colorizeGeometry(crown, '#5c9c6b'));
-        const crown2 = new THREE.DodecahedronGeometry(0.7, 1);
-        crown2.translate(d.x - 0.45, 2.65, d.y - 0.3);
-        geoms.push(colorizeGeometry(crown2, '#73b581'));
+        const tg = treeProto.clone();
+        tg.translate(d.x, 0.04, d.y);
+        geoms.push(tg);
       } else if (d.t === 'cart') {
         // Indonesian Gerobak food cart with blue tarp canopy
         pushBox(d.x + 0.25, 0.55, d.y, 0.65, 1.0, 1.2, '#5B7FA6');
@@ -484,10 +483,15 @@ export class World3D {
       }
     });
 
-    // Parking lot static cars & bikes
+    // Parking lot static cars & scooters
     (G.park || []).forEach((d) => {
       if (d.t === 'car') addCarGeom(d.x, d.y, false, d.c);
-      else pushBox(d.x, 0.3, d.y, 0.5, 0.38, 0.22, d.c);
+      else {
+        const bg = buildStaticBikeGeom(d.c);
+        bg.rotateY(Math.PI / 2);
+        bg.translate(d.x, 0.04, d.y);
+        geoms.push(bg);
+      }
     });
 
     if (geoms.length) {

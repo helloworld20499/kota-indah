@@ -1,6 +1,10 @@
 import * as THREE from 'three';
-import { CT, GX, POLES, Z_SCALE, clamp, fm, tierOf } from './config.js';
-import { Lw } from './config.js';
+import { CT, GX, Lw, POLES, Z_SCALE, clamp, fm, tierOf } from './config.js';
+import { ART_STYLES } from './themes.js';
+import {
+  buildClayHumanGeometries, buildScooterGeometries, buildSedanGeometries,
+  makeClayFaceTexture, makePaperBodyTexture, makePaperHairTexture, makePaperHeadTexture,
+} from './meshes3d.js';
 import { barOpen, lit, skillActive } from './sim.js';
 
 const MAX_HUMANS = 768;
@@ -52,51 +56,84 @@ export class Actors3D {
   _initHumans() {
     const shGeo = new THREE.CircleGeometry(0.24, 10);
     shGeo.rotateX(-Math.PI / 2);
-    const shMat = new THREE.MeshBasicMaterial({ color: '#141016', transparent: true, opacity: 0.34, depthWrite: false });
+    const shMat = new THREE.MeshBasicMaterial({ color: '#141016', transparent: true, opacity: 0.28, depthWrite: false });
     this.shadowMesh = new THREE.InstancedMesh(shGeo, shMat, MAX_HUMANS);
 
-    const legMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85 });
-    this.legMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.22, 0.34, 0.16), legMat, MAX_HUMANS);
+    // Version A: Sculpted 3D Clay Toy Human layers
+    const clay = buildClayHumanGeometries();
+    const clayMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.62 });
+    const faceMat = new THREE.MeshStandardMaterial({ map: makeClayFaceTexture(), color: '#ffffff', roughness: 0.58 });
 
-    const torsoMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.72 });
-    this.torsoMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.3, 0.42, 0.2), torsoMat, MAX_HUMANS);
+    this.legLMesh = new THREE.InstancedMesh(clay.legGeo, clayMat, MAX_HUMANS);
+    this.legRMesh = new THREE.InstancedMesh(clay.legGeo, clayMat, MAX_HUMANS);
+    this.armLMesh = new THREE.InstancedMesh(clay.armGeo, clayMat, MAX_HUMANS);
+    this.armRMesh = new THREE.InstancedMesh(clay.armGeo, clayMat, MAX_HUMANS);
+    this.dressMesh = new THREE.InstancedMesh(clay.dressGeo, clayMat, MAX_HUMANS);
+    this.coatMesh = new THREE.InstancedMesh(clay.coatGeo, clayMat, MAX_HUMANS);
+    this.headMesh = new THREE.InstancedMesh(clay.headGeo, faceMat, MAX_HUMANS);
+    this.hairMesh = new THREE.InstancedMesh(clay.hairGeo, clayMat, MAX_HUMANS);
 
-    const headMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.65 });
-    this.headMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.23, 0.23, 0.23), headMat, MAX_HUMANS);
+    // Legacy alias kept for verify-all compatibility
+    this.legMesh = this.legLMesh;
+    this.torsoMesh = this.coatMesh;
 
-    const hairMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.8 });
-    this.hairMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.26, 0.13, 0.25), hairMat, MAX_HUMANS);
+    // Version B: 2.5D Pen-Inked Watercolor Paper-Doll layers
+    const cardGeo = new THREE.PlaneGeometry(0.7, 0.72);
+    const headCardGeo = new THREE.PlaneGeometry(0.45, 0.45);
+    const hairCardGeo = new THREE.PlaneGeometry(0.48, 0.46);
+    const mkPaperMat = (tex) =>
+      new THREE.MeshStandardMaterial({
+        map: tex,
+        transparent: true,
+        alphaTest: 0.35,
+        side: THREE.DoubleSide,
+        roughness: 0.88,
+      });
+
+    this.paperBodyMesh = new THREE.InstancedMesh(cardGeo, mkPaperMat(makePaperBodyTexture()), MAX_HUMANS);
+    this.paperHeadMesh = new THREE.InstancedMesh(headCardGeo, mkPaperMat(makePaperHeadTexture()), MAX_HUMANS);
+    this.paperHairMesh = new THREE.InstancedMesh(hairCardGeo, mkPaperMat(makePaperHairTexture()), MAX_HUMANS);
 
     const badgeMat = new THREE.MeshBasicMaterial({ color: '#ffffff' });
-    this.badgeMesh = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.09, 0), badgeMat, MAX_BADGES);
+    this.badgeMesh = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.085, 0), badgeMat, MAX_BADGES);
 
-    [this.shadowMesh, this.legMesh, this.torsoMesh, this.headMesh, this.hairMesh, this.badgeMesh].forEach((m) => {
+    const allMeshes = [
+      this.shadowMesh, this.legLMesh, this.legRMesh, this.armLMesh, this.armRMesh,
+      this.dressMesh, this.coatMesh, this.headMesh, this.hairMesh,
+      this.paperBodyMesh, this.paperHeadMesh, this.paperHairMesh, this.badgeMesh,
+    ];
+    _col.setHex(0xffffff);
+    allMeshes.forEach((m) => {
       m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       m.frustumCulled = false;
+      if (m !== this.shadowMesh) m.setColorAt(0, _col);
       this.scene.add(m);
     });
-    _col.setHex(0xffffff);
-    [this.legMesh, this.torsoMesh, this.headMesh, this.hairMesh, this.badgeMesh].forEach((m) => {
-      m.setColorAt(0, _col);
-    });
-    this.torsoMesh.castShadow = true;
+    this.dressMesh.castShadow = true;
+    this.coatMesh.castShadow = true;
   }
 
   _initVehicles() {
-    const bodyMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.45, metalness: 0.25 });
-    const cabinMat = new THREE.MeshStandardMaterial({ color: '#dce4e6', roughness: 0.35, metalness: 0.15 });
-    const motoMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.55 });
+    const sedan = buildSedanGeometries();
+    const bodyMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.42, metalness: 0.22 });
+    const trimMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.48, metalness: 0.18 });
 
-    this.carBodyMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 0.55, 1), bodyMat, MAX_CARS);
-    this.carCabinMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.7, 0.4, 0.7), cabinMat, MAX_CARS);
-    this.motoMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.32, 0.45, 0.62), motoMat, MAX_CARS);
+    this.carBodyMesh = new THREE.InstancedMesh(sedan.bodyGeo, bodyMat, MAX_CARS);
+    this.carTrimMesh = new THREE.InstancedMesh(sedan.trimGeo, trimMat, MAX_CARS);
+    this.carCabinMesh = this.carTrimMesh; // alias
+
+    const scooter = buildScooterGeometries(true);
+    const motoBodyMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.48 });
+    const motoDetailMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 });
+    this.motoMesh = new THREE.InstancedMesh(scooter.bodyGeo, motoBodyMat, MAX_CARS);
+    this.motoDetailMesh = new THREE.InstancedMesh(scooter.detailGeo, motoDetailMat, MAX_CARS);
 
     _col.setHex(0xffffff);
-    [this.carBodyMesh, this.carCabinMesh, this.motoMesh].forEach((m) => {
+    [this.carBodyMesh, this.carTrimMesh, this.motoMesh, this.motoDetailMesh].forEach((m) => {
       m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       m.frustumCulled = false;
       m.castShadow = true;
-      m.setColorAt(0, _col);
+      if (m === this.carBodyMesh || m === this.motoMesh) m.setColorAt(0, _col);
       this.scene.add(m);
     });
   }
@@ -203,14 +240,15 @@ export class Actors3D {
     }
   }
 
-  _pushHuman(state, x, z, lift, ph, sit, shirt, hair, skin, pants, wide = false, badgeCol = null) {
+  _pushHuman(state, x, z, lift, ph, sit, shirt, hair, skin, pants, wide = false, badgeCol = null, female = false, wave = false) {
     if (state.hCount >= MAX_HUMANS) return;
     const idx = state.hCount++;
-    const yBase = (lift || 0) * Z_SCALE * 0.65 + 0.08;
-    const bounce = sit ? 0 : Math.abs(Math.sin(ph || 0)) * 0.05;
-    const wMul = wide ? 1.22 : 1.0;
+    const yBase = (lift || 0) * Z_SCALE * 0.58 + 0.08;
+    const stride = sit ? 0 : Math.sin(ph || 0);
+    const bounce = sit ? 0 : Math.abs(stride) * 0.045;
+    const wMul = wide ? 1.18 : 1.0;
 
-    // Shadow
+    // Shadow disc
     if (!lift) {
       _pos.set(x, 0.11, z);
       _quat.identity();
@@ -223,51 +261,112 @@ export class Actors3D {
     }
     this.shadowMesh.setMatrixAt(idx, _m4);
 
-    // Legs
-    _pos.set(x, yBase + (sit ? 0.14 : 0.17 + bounce * 0.5), z);
-    _euler.set(0, 0, 0);
-    _quat.setFromEuler(_euler);
-    _scl.set(1, sit ? 0.65 : 1, sit ? 1.25 : 1);
-    _m4.compose(_pos, _quat, _scl);
-    this.legMesh.setMatrixAt(idx, _m4);
-    _col.set(pants || '#3e3832');
-    this.legMesh.setColorAt(idx, _col);
+    if (state.actorMode === 'paper25d') {
+      const pi = state.paperCount++;
+      const wobble = sit ? 0 : stride * 0.085;
+      _euler.set(0, state.camYaw, wobble);
+      _quat.setFromEuler(_euler);
 
-    // Torso
-    const legTop = yBase + (sit ? 0.24 : 0.34) + bounce;
-    _pos.set(x, legTop + 0.21, z);
+      _pos.set(x, yBase + 0.34 + bounce, z);
+      _scl.set(wMul, sit ? 0.84 : 1, 1);
+      _m4.compose(_pos, _quat, _scl);
+      this.paperBodyMesh.setMatrixAt(pi, _m4);
+      this.paperBodyMesh.setColorAt(pi, _col.set(shirt || '#C8574B'));
+
+      _pos.set(x, yBase + (sit ? 0.64 : 0.75) + bounce, z);
+      _scl.set(1, 1, 1);
+      _m4.compose(_pos, _quat, _scl);
+      this.paperHeadMesh.setMatrixAt(pi, _m4);
+      this.paperHeadMesh.setColorAt(pi, _col.set(skin || '#D7A47C'));
+
+      // Offset hair subtly toward camera forward so no z-fighting
+      _pos.set(x + state.camFwdX * 0.015, yBase + (sit ? 0.68 : 0.79) + bounce, z + state.camFwdZ * 0.015);
+      _m4.compose(_pos, _quat, _scl);
+      this.paperHairMesh.setMatrixAt(pi, _m4);
+      this.paperHairMesh.setColorAt(pi, _col.set(hair || '#2b211b'));
+
+      if (badgeCol && state.bCount < MAX_BADGES) {
+        const bi = state.bCount++;
+        _pos.set(x, yBase + 1.05 + Math.sin(state.now / 280 + idx) * 0.04, z);
+        _euler.set(0, state.now / 500 + idx, 0);
+        _quat.setFromEuler(_euler);
+        _m4.compose(_pos, _quat, _scl);
+        this.badgeMesh.setMatrixAt(bi, _m4);
+        this.badgeMesh.setColorAt(bi, _col.set(badgeCol));
+      }
+      return;
+    }
+
+    // Version A: Sculpted 3D Clay Toy Character
+    const ci = state.clayCount++;
+    const yaw = state.camYaw;
+
+    // Legs (left & right swinging stride or folded sitting)
+    const legPitch = sit ? -Math.PI / 2.6 : stride * 0.55;
+    [-0.065, 0.065].forEach((sideOff, li) => {
+      const pitch = li === 0 ? legPitch : (sit ? legPitch : -legPitch);
+      _pos.set(x + Math.cos(yaw) * sideOff, yBase + (sit ? 0.16 : 0.14), z - Math.sin(yaw) * sideOff);
+      _euler.set(pitch, yaw, 0, 'YXZ');
+      _quat.setFromEuler(_euler);
+      _scl.set(1, sit ? 0.75 : 1, 1);
+      _m4.compose(_pos, _quat, _scl);
+      const legM = li === 0 ? this.legLMesh : this.legRMesh;
+      legM.setMatrixAt(ci, _m4);
+      legM.setColorAt(ci, _col.set(pants || '#3e3832'));
+    });
+
+    // Sculpted Torso (A-line flared dress for women/hostesses, rounded coat for men)
+    const legTop = yBase + (sit ? 0.22 : 0.27) + bounce;
+    _pos.set(x, legTop, z);
+    _euler.set(0, yaw, 0);
+    _quat.setFromEuler(_euler);
     _scl.set(wMul, 1, wMul);
     _m4.compose(_pos, _quat, _scl);
-    this.torsoMesh.setMatrixAt(idx, _m4);
-    _col.set(shirt || '#C8574B');
-    this.torsoMesh.setColorAt(idx, _col);
+    if (female) {
+      const di = state.dressCount++;
+      this.dressMesh.setMatrixAt(di, _m4);
+      this.dressMesh.setColorAt(di, _col.set(shirt || '#C8574B'));
+    } else {
+      const mi = state.coatCount++;
+      this.coatMesh.setMatrixAt(mi, _m4);
+      this.coatMesh.setColorAt(mi, _col.set(shirt || '#5B7FA6'));
+    }
 
-    // Head
-    _pos.set(x, legTop + 0.53, z);
-    _scl.set(1, 1, 1);
-    _m4.compose(_pos, _quat, _scl);
-    this.headMesh.setMatrixAt(idx, _m4);
-    _col.set(skin || '#D7A47C');
-    this.headMesh.setColorAt(idx, _col);
-
-    // Hair
-    _pos.set(x, legTop + 0.66, z);
-    _m4.compose(_pos, _quat, _scl);
-    this.hairMesh.setMatrixAt(idx, _m4);
-    _col.set(hair || '#2b211b');
-    this.hairMesh.setColorAt(idx, _col);
-
-    // Optional badge above head
-    if (badgeCol && state.bCount < MAX_BADGES) {
-      const bi = state.bCount++;
-      _pos.set(x, legTop + 0.92 + Math.sin(state.now / 280 + idx) * 0.04, z);
-      _euler.set(0, state.now / 500 + idx, 0);
+    // Swinging Arms (with animated wave for marketing/touts)
+    [-0.17 * wMul, 0.17 * wMul].forEach((sideOff, ai) => {
+      const armPitch = ai === 1 && wave ? -Math.PI * 0.75 + Math.sin(state.now / 150) * 0.35 : sit ? -0.3 : (ai === 0 ? -stride * 0.5 : stride * 0.5);
+      _pos.set(x + Math.cos(yaw) * sideOff, legTop + 0.31, z - Math.sin(yaw) * sideOff);
+      _euler.set(armPitch, yaw, ai === 0 ? 0.15 : -0.15, 'YXZ');
       _quat.setFromEuler(_euler);
       _scl.set(1, 1, 1);
       _m4.compose(_pos, _quat, _scl);
+      const armM = ai === 0 ? this.armLMesh : this.armRMesh;
+      armM.setMatrixAt(ci, _m4);
+      armM.setColorAt(ci, _col.set(shirt || '#C8574B'));
+    });
+
+    // Spherical Head + Sculpted Hair
+    _pos.set(x, legTop + 0.57, z);
+    _euler.set(0, yaw, 0);
+    _quat.setFromEuler(_euler);
+    _scl.set(1, 1, 1);
+    _m4.compose(_pos, _quat, _scl);
+    this.headMesh.setMatrixAt(ci, _m4);
+    this.headMesh.setColorAt(ci, _col.set(skin || '#D7A47C'));
+
+    _pos.set(x, legTop + 0.61, z);
+    _m4.compose(_pos, _quat, _scl);
+    this.hairMesh.setMatrixAt(ci, _m4);
+    this.hairMesh.setColorAt(ci, _col.set(hair || '#2b211b'));
+
+    if (badgeCol && state.bCount < MAX_BADGES) {
+      const bi = state.bCount++;
+      _pos.set(x, legTop + 0.88 + Math.sin(state.now / 280 + idx) * 0.04, z);
+      _euler.set(0, state.now / 500 + idx, 0);
+      _quat.setFromEuler(_euler);
+      _m4.compose(_pos, _quat, _scl);
       this.badgeMesh.setMatrixAt(bi, _m4);
-      _col.set(badgeCol);
-      this.badgeMesh.setColorAt(bi, _col);
+      this.badgeMesh.setColorAt(bi, _col.set(badgeCol));
     }
   }
 
@@ -279,8 +378,7 @@ export class Actors3D {
     _scl.set(radius, 1, radius);
     _m4.compose(_pos, _quat, _scl);
     this.glowMesh.setMatrixAt(gi, _m4);
-    _col.set(hex);
-    this.glowMesh.setColorAt(gi, _col);
+    this.glowMesh.setColorAt(gi, _col.set(hex));
   }
 
   _pushHud(state, wx, wy, wz, text, cls, onClick = null) {
@@ -302,10 +400,29 @@ export class Actors3D {
   update(G, dtReal, onSelectLot) {
     const now = performance.now();
     const zoom = this.scene3d.getZoom();
+    const cam = this.scene3d.camera;
+    const tgt = this.scene3d.controls.target;
+    const camYaw = Math.atan2(cam.position.x - tgt.x, cam.position.z - tgt.z);
+    const theme = ART_STYLES[this.scene3d.artStyle || 'diorama'];
+
     this.hudW = this.hudContainer ? this.hudContainer.clientWidth : 800;
     this.hudH = this.hudContainer ? this.hudContainer.clientHeight : 600;
 
-    const state = { hCount: 0, bCount: 0, gCount: 0, hudIdx: 0, now };
+    const state = {
+      hCount: 0,
+      clayCount: 0,
+      dressCount: 0,
+      coatCount: 0,
+      paperCount: 0,
+      bCount: 0,
+      gCount: 0,
+      hudIdx: 0,
+      now,
+      actorMode: theme.actorMode,
+      camYaw,
+      camFwdX: Math.sin(camYaw),
+      camFwdZ: Math.cos(camYaw),
+    };
 
     // 1. Pedestrians
     for (let i = 0; i < G.peds.length; i++) {
@@ -314,7 +431,10 @@ export class Actors3D {
       const l = p.bar != null ? G.lots[p.bar] : null;
       const sitSeat = p.st === 'sit' && p.seat != null && l ? l._seats?.[p.seat] : null;
       const badgeCol = p.vip ? '#ffd65c' : p.bar != null && l?.kind === 'mine' ? CT[p.ctype].col : null;
-      this._pushHuman(state, p.x, p.y, sitSeat ? sitSeat.lift : 0, p.ph, !!sitSeat, p.shirt, p.hair, p.skin, '#3d3731', false, badgeCol);
+      this._pushHuman(
+        state, p.x, p.y, sitSeat ? sitSeat.lift : 0, p.ph, !!sitSeat,
+        p.shirt, p.hair, p.skin, '#3d3731', false, badgeCol, !!p.f, false,
+      );
       if (p.bub > 0 && zoom > 0.65) {
         this._pushHud(state, p.x, 1.38, p.y, p.bt, p.bc === '#FF5C54' || p.bc === '#B5362F' ? 'bad' : p.bc === '#E8B959' ? 'gold' : 'bub');
       }
@@ -324,26 +444,22 @@ export class Actors3D {
     for (let i = 0; i < G.lots.length; i++) {
       const l = G.lots[i];
       if (l.kind === 'mine') {
-        // Bartender
         const [cx, cy] = Lw(l, (l.L * 2.3) / 5, (l.D * 0.3) / 6);
-        this._pushHuman(state, cx, cy, 0, 0, false, '#F0E8D6', '#2b211b', '#D7A47C', '#2a2420');
+        this._pushHuman(state, cx, cy, 0, 0, false, '#F0E8D6', '#2b211b', '#D7A47C', '#2a2420', false, null, false, false);
         if (l.dj) {
           const [dx, dy] = Lw(l, l.L - 0.8, l.D - 1.55);
-          this._pushHuman(state, dx, dy, 0, barOpen() ? now / 180 : 0, false, '#3F4A5A', '#1f1a18', '#C99670', '#242026', false, barOpen() ? '#ff52d9' : null);
+          this._pushHuman(state, dx, dy, 0, barOpen() ? now / 180 : 0, false, '#3F4A5A', '#1f1a18', '#C99670', '#242026', false, barOpen() ? '#ff52d9' : null, false, barOpen());
         }
-        // Marketing
         for (let m = 0; m < l.mkts.length; m++) {
           const mk = l.mkts[m];
-          this._pushHuman(state, mk.x, mk.y, 0, mk._ph, false, '#2F261E', mk.hair, mk.skin, '#242026');
+          this._pushHuman(state, mk.x, mk.y, 0, mk._ph, false, '#2F261E', mk.hair, mk.skin, '#242026', false, null, false, !mk._path.length && barOpen());
           if (zoom > 1.75) this._pushHud(state, mk.x, 1.32, mk.y, `${mk.name}·营销`, 'tag');
         }
-        // Bouncers
         for (let b = 0; b < (l.bouncers || []).length; b++) {
           const bc = l.bouncers[b];
-          this._pushHuman(state, bc.x, bc.y, 0, bc._ph, false, '#18181f', '#121216', bc.skin, '#121216', true, bc._chase > 0 ? '#3DD6A5' : '#5EA8E8');
+          this._pushHuman(state, bc.x, bc.y, 0, bc._ph, false, '#222430', '#121216', bc.skin, '#181922', true, bc._chase > 0 ? '#3DD6A5' : '#5EA8E8', false, bc._chase > 0);
           if (zoom > 1.65) this._pushHud(state, bc.x, 1.38, bc.y, `🛡️ ${bc.name}`, 'tag');
         }
-        // Hostesses
         for (let hIdx = 0; hIdx < l.hostesses.length; hIdx++) {
           const h = l.hostesses[hIdx];
           if (h.hidden) continue;
@@ -351,80 +467,101 @@ export class Actors3D {
           this._pushHuman(
             state, h.x, h.y + (h.sit ? 0.05 : 0), h.lift, h._ph, h.sit,
             h.dress, h.hair, h.skin, h.dress, h.body === 'curvy',
-            t === 2 ? '#ffd65c' : t === 1 ? '#ff7c6e' : null,
+            t === 2 ? '#ffd65c' : t === 1 ? '#ff7c6e' : null, true, false,
           );
           if (zoom > 1.75) this._pushHud(state, h.x, 1.35 + (h.lift || 0) * Z_SCALE * 0.6, h.y, h.name, 'name');
         }
       } else if (l.kind === 'rival') {
         for (let hIdx = 0; hIdx < l.hs.length; hIdx++) {
           const h = l.hs[hIdx];
-          this._pushHuman(state, h.x, h.y + (h.sit ? 0.05 : 0), h.lift, h._ph, h.sit, h.dress, h.hair, h.skin, h.dress, h.body === 'curvy');
+          this._pushHuman(state, h.x, h.y + (h.sit ? 0.05 : 0), h.lift, h._ph, h.sit, h.dress, h.hair, h.skin, h.dress, h.body === 'curvy', null, true, false);
         }
         for (let tIdx = 0; tIdx < l.touts.length; tIdx++) {
           const t = l.touts[tIdx];
-          this._pushHuman(state, t.x, t.y, 0, t._ph, false, '#B5362F', t.hair, t.skin, '#302924');
+          this._pushHuman(state, t.x, t.y, 0, t._ph, false, '#B5362F', t.hair, t.skin, '#302924', false, null, false, !t._path.length);
         }
       } else if (l.kind === 'shop') {
         if (l.type === 'food') {
           const [cx, cy] = Lw(l, l.L * 0.4, 0.2);
-          this._pushHuman(state, cx, cy, 0, 0, false, '#3F2E25', '#2b211b', '#D7A47C', '#242026');
+          this._pushHuman(state, cx, cy, 0, 0, false, '#4F6C64', '#2b211b', '#D7A47C', '#242026', false, null, true, false);
         } else if (l.type === 'mart') {
           const [cx, cy] = Lw(l, l.L - 0.9, 0.35);
-          this._pushHuman(state, cx, cy, 0, 0, false, '#2F6FB5', '#2b211b', '#D7A47C', '#242026');
+          this._pushHuman(state, cx, cy, 0, 0, false, '#2F6FB5', '#2b211b', '#D7A47C', '#242026', false, null, true, false);
         }
       }
     }
 
     // Security gate guards
-    this._pushHuman(state, 50.6, 29.3, 0, 0, false, '#3F4A5A', '#1f1a18', '#C99670', '#2F261E');
-    this._pushHuman(state, 50.6, 6.7, 0, 0, false, '#3F4A5A', '#1f1a18', '#C99670', '#2F261E');
+    this._pushHuman(state, 50.6, 29.3, 0, 0, false, '#3F4A5A', '#1f1a18', '#C99670', '#2F261E', false, null, false, false);
+    this._pushHuman(state, 50.6, 6.7, 0, 0, false, '#3F4A5A', '#1f1a18', '#C99670', '#2F261E', false, null, false, false);
 
-    this.shadowMesh.count = state.hCount;
-    this.legMesh.count = state.hCount;
-    this.torsoMesh.count = state.hCount;
-    this.headMesh.count = state.hCount;
-    this.hairMesh.count = state.hCount;
-    this.badgeMesh.count = state.bCount;
-    [this.shadowMesh, this.legMesh, this.torsoMesh, this.headMesh, this.hairMesh, this.badgeMesh].forEach((m) => {
-      m.instanceMatrix.needsUpdate = true;
-      if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    // Toggle clay 3D vs paper 2.5D layers cleanly
+    const isClay = theme.actorMode === 'clay3d';
+    [this.legLMesh, this.legRMesh, this.armLMesh, this.armRMesh, this.dressMesh, this.coatMesh, this.headMesh, this.hairMesh].forEach((m) => {
+      m.visible = isClay;
+    });
+    [this.paperBodyMesh, this.paperHeadMesh, this.paperHairMesh].forEach((m) => {
+      m.visible = !isClay;
     });
 
-    // 3. Moving Vehicles (Cars, Motorbikes, Police Cruiser)
+    this.shadowMesh.count = state.hCount;
+    this.shadowMesh.instanceMatrix.needsUpdate = true;
+
+    if (isClay) {
+      this.legLMesh.count = state.clayCount;
+      this.legRMesh.count = state.clayCount;
+      this.armLMesh.count = state.clayCount;
+      this.armRMesh.count = state.clayCount;
+      this.headMesh.count = state.clayCount;
+      this.hairMesh.count = state.clayCount;
+      this.dressMesh.count = state.dressCount;
+      this.coatMesh.count = state.coatCount;
+      [this.legLMesh, this.legRMesh, this.armLMesh, this.armRMesh, this.dressMesh, this.coatMesh, this.headMesh, this.hairMesh].forEach((m) => {
+        m.instanceMatrix.needsUpdate = true;
+        if (m.instanceColor) m.instanceColor.needsUpdate = true;
+      });
+    } else {
+      this.paperBodyMesh.count = state.paperCount;
+      this.paperHeadMesh.count = state.paperCount;
+      this.paperHairMesh.count = state.paperCount;
+      [this.paperBodyMesh, this.paperHeadMesh, this.paperHairMesh].forEach((m) => {
+        m.instanceMatrix.needsUpdate = true;
+        if (m.instanceColor) m.instanceColor.needsUpdate = true;
+      });
+    }
+
+    this.badgeMesh.count = state.bCount;
+    this.badgeMesh.instanceMatrix.needsUpdate = true;
+    if (this.badgeMesh.instanceColor) this.badgeMesh.instanceColor.needsUpdate = true;
+
+    // 3. Sculpted Vehicles (Chamfered Sedans & Helmeted Scooters)
     let carCount = 0;
     let motoCount = 0;
     const pushCar = (v) => {
       if (v.moto) {
         if (motoCount >= MAX_CARS) return;
         const mi = motoCount++;
-        _pos.set(v.x, 0.32, v.y);
-        _euler.set(0, v.ax ? 0 : Math.PI / 2, 0);
+        const yaw = v.ax ? (v.dir >= 0 ? 0 : Math.PI) : (v.dir >= 0 ? Math.PI / 2 : -Math.PI / 2);
+        _pos.set(v.x, 0.06, v.y);
+        _euler.set(0, yaw, 0);
         _quat.setFromEuler(_euler);
         _scl.set(1, 1, 1);
         _m4.compose(_pos, _quat, _scl);
         this.motoMesh.setMatrixAt(mi, _m4);
-        _col.set(v.c);
-        this.motoMesh.setColorAt(mi, _col);
+        this.motoDetailMesh.setMatrixAt(mi, _m4);
+        this.motoMesh.setColorAt(mi, _col.set(v.c));
       } else {
         if (carCount >= MAX_CARS) return;
         const ci = carCount++;
-        const len = v.vipCar ? 2.4 : 1.9;
-        const wid = v.vipCar ? 0.96 : 0.84;
-        _pos.set(v.x, 0.36, v.y);
-        _euler.set(0, v.ax ? Math.PI / 2 : 0, 0);
+        const yaw = v.ax ? (v.dir >= 0 ? -Math.PI / 2 : Math.PI / 2) : (v.dir >= 0 ? 0 : Math.PI);
+        _pos.set(v.x, 0.06, v.y);
+        _euler.set(0, yaw, 0);
         _quat.setFromEuler(_euler);
-        _scl.set(len, 1, wid);
+        _scl.set(v.vipCar ? 1.24 : 1, v.vipCar ? 1.06 : 1, v.vipCar ? 1.1 : 1);
         _m4.compose(_pos, _quat, _scl);
         this.carBodyMesh.setMatrixAt(ci, _m4);
-        _col.set(v.c);
-        this.carBodyMesh.setColorAt(ci, _col);
-
-        _pos.set(v.x, 0.78, v.y);
-        _scl.set(len * 0.75, 1, wid * 1.15);
-        _m4.compose(_pos, _quat, _scl);
-        this.carCabinMesh.setMatrixAt(ci, _m4);
-        _col.set(v.vipCar ? '#20222a' : '#dce4e6');
-        this.carCabinMesh.setColorAt(ci, _col);
+        this.carTrimMesh.setMatrixAt(ci, _m4);
+        this.carBodyMesh.setColorAt(ci, _col.set(v.c));
       }
     };
 
@@ -433,33 +570,35 @@ export class Actors3D {
       pushCar({ x: GX + 1.6, y: 27, ax: 1, dir: -1, c: '#F3F3F0', moto: false });
     }
     this.carBodyMesh.count = carCount;
-    this.carCabinMesh.count = carCount;
+    this.carTrimMesh.count = carCount;
     this.motoMesh.count = motoCount;
-    [this.carBodyMesh, this.carCabinMesh, this.motoMesh].forEach((m) => {
+    this.motoDetailMesh.count = motoCount;
+    [this.carBodyMesh, this.carTrimMesh, this.motoMesh, this.motoDetailMesh].forEach((m) => {
       m.instanceMatrix.needsUpdate = true;
       if (m.instanceColor) m.instanceColor.needsUpdate = true;
     });
 
     // 4. Instanced Additive Glow Pools (1 Draw Call!)
-    const night = clamp((G.t / 60 - 17) / 2.4, 0, 1);
+    const h = this.scene3d.lightMode === 'day' ? 14.5 : G.t / 60;
+    const night = clamp((h - 17) / 2.4, 0, 1);
     const rainMul = G.ev && G.ev.rain ? 1.42 : 1.0;
     if (night > 0.05) {
       for (let i = 0; i < POLES.length; i++) {
-        this._pushGlow(state, POLES[i].lx, POLES[i].ly, 4.6 * rainMul, '#ffcf78');
+        this._pushGlow(state, POLES[i].lx, POLES[i].ly, 5.2 * rainMul, '#ffda8c');
       }
-      this._pushGlow(state, GX + 0.5, 27, 5.2 * rainMul, '#8cb8ff');
-      this._pushGlow(state, GX + 0.5, 9, 5.2 * rainMul, '#8cb8ff');
+      this._pushGlow(state, GX + 0.5, 27, 5.6 * rainMul, '#9ec4ff');
+      this._pushGlow(state, GX + 0.5, 9, 5.6 * rainMul, '#9ec4ff');
 
       for (let i = 0; i < G.lots.length; i++) {
         const l = G.lots[i];
         if (!lit(l)) continue;
         const hh = skillActive(l, 'happyHour') ? 1.5 + 0.5 * Math.sin(now / 180) : 0;
-        const glowRad = (l.kind === 'mine' ? 3.5 + (l.sign || 0) * 1.1 + hh : 3.8) * rainMul;
+        const glowRad = (l.kind === 'mine' ? 3.8 + (l.sign || 0) * 1.1 + hh : 4.0) * rainMul;
         for (let d = 0; d < l.doors.length; d++) {
           this._pushGlow(state, l.doors[d].out[0], l.doors[d].out[1], glowRad, l.ac);
         }
-        // Warm bright interior lantern glow inside open shops
-        this._pushGlow(state, (l.x0 + l.x1) / 2, (l.y0 + l.y1) / 2, Math.max(l.L, l.D) * 0.9, '#ffdf9e', 0.14);
+        // Bright warm interior lantern glow inside open shops
+        this._pushGlow(state, (l.x0 + l.x1) / 2, (l.y0 + l.y1) / 2, Math.max(l.L, l.D) * 0.98, '#ffe7ad', 0.14);
         if (l.kind === 'mine' && skillActive(l, 'showtime')) {
           this._pushGlow(state, (l.x0 + l.x1) / 2, (l.y0 + l.y1) / 2, 4.5, '#ff59d6', 0.16);
         }
@@ -467,10 +606,9 @@ export class Actors3D {
 
       for (let i = 0; i < G.cars.length; i++) {
         const v = G.cars[i];
-        this._pushGlow(state, v.x + (v.ax ? 0 : v.dir * 1.3), v.y + (v.ax ? v.dir * 1.3 : 0), 2.3 * rainMul, '#fff0b8');
+        this._pushGlow(state, v.x + (v.ax ? 0 : v.dir * 1.3), v.y + (v.ax ? v.dir * 1.3 : 0), 2.5 * rainMul, '#fff2c2');
       }
-      // Street food gerobak warm lantern glow
-      this._pushGlow(state, 52.4, 33.5, 3.0 * rainMul, '#ffaa44');
+      this._pushGlow(state, 52.4, 33.5, 3.4 * rainMul, '#ffbe5c');
     }
     if (G.raidUntil && G.t < G.raidUntil) {
       const fl = ((now / 220) | 0) % 2;
@@ -487,7 +625,7 @@ export class Actors3D {
     this.glowMesh.instanceMatrix.needsUpdate = true;
     if (this.glowMesh.instanceColor) this.glowMesh.instanceColor.needsUpdate = true;
 
-    // 5. Rain & Confetti particles
+    // 5. Rain, Smoke & Confetti particles
     if (G.ev && G.ev.rain) {
       this.rainLines.visible = true;
       const posAttr = this.rainLines.geometry.attributes.position;
@@ -507,6 +645,18 @@ export class Actors3D {
       posAttr.needsUpdate = true;
     } else {
       this.rainLines.visible = false;
+    }
+
+    if (this.smokePoints) {
+      const sArr = this.smokePoints.geometry.attributes.position.array;
+      const tSec = now * 0.001;
+      for (let i = 0; i < this.smokeCount; i++) {
+        const phase = (tSec * 0.55 + i / this.smokeCount) % 1;
+        sArr[i * 3] = 52.25 + Math.sin(tSec * 1.6 + i) * 0.16 * phase;
+        sArr[i * 3 + 1] = 1.25 + phase * 1.9;
+        sArr[i * 3 + 2] = 33.5 + Math.cos(tSec * 1.3 + i) * 0.16 * phase;
+      }
+      this.smokePoints.geometry.attributes.position.needsUpdate = true;
     }
 
     if (this.confettiParticles.length) {
@@ -532,19 +682,6 @@ export class Actors3D {
       posAttr.needsUpdate = true;
     } else {
       this.confetti.visible = false;
-    }
-
-    // 5b. Gerobak satay cart rising steam/smoke puffs
-    if (this.smokePoints) {
-      const sArr = this.smokePoints.geometry.attributes.position.array;
-      const tSec = now * 0.001;
-      for (let i = 0; i < this.smokeCount; i++) {
-        const phase = (tSec * 0.55 + i / this.smokeCount) % 1;
-        sArr[i * 3] = 52.25 + Math.sin(tSec * 1.6 + i) * 0.16 * phase;
-        sArr[i * 3 + 1] = 1.25 + phase * 1.9;
-        sArr[i * 3 + 2] = 33.5 + Math.cos(tSec * 1.3 + i) * 0.16 * phase;
-      }
-      this.smokePoints.geometry.attributes.position.needsUpdate = true;
     }
 
     // 6. Floating FX money popups, Music Notes & Overview shop signs

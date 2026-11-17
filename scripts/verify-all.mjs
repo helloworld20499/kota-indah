@@ -127,12 +127,24 @@ globalThis.document = {
   addEventListener: noop,
 };
 
-/* ---------- 3. Verify World3D & Actors3D Geometry, Colors, Matrices ---------- */
+/* ---------- 3. Verify World3D, Themes, Ortho Picking & Actors3D ---------- */
+const { ART_STYLES, LIGHT_MODES, getInitialArtStyle, saveArtStyle, applyDomTheme } = await import('../src/themes.js');
 const { World3D } = await import('../src/world3d.js');
 const { Actors3D } = await import('../src/actors3d.js');
 const state = await import('../src/state.js');
 const { initSim, simHeadlessDays } = await import('../src/sim.js');
 const ui = await import('../src/ui.js');
+
+assert.equal(getInitialArtStyle(), 'diorama');
+window.location.search = '?style=storybook';
+assert.equal(getInitialArtStyle(), 'storybook');
+applyDomTheme('storybook');
+assert.equal(document.documentElement.dataset.theme, 'storybook');
+window.location.search = '?style=diorama';
+saveArtStyle('diorama');
+applyDomTheme('diorama');
+assert.equal(Object.keys(ART_STYLES).length, 2);
+assert.equal(Object.keys(LIGHT_MODES).length, 3);
 
 initSim();
 const G = state.G;
@@ -167,7 +179,45 @@ for (let i = 0; i < G.lots.length; i++) {
   assert(Math.abs(bbox.min.z - l.y0) < 0.05, `Lot ${i} min.z mismatch: ${bbox.min.z} vs ${l.y0}`);
   assert(Math.abs(bbox.max.z - l.y1) < 0.05, `Lot ${i} max.z mismatch: ${bbox.max.z} vs ${l.y1}`);
 }
-console.log(`[2/4] World3D lot footprints & geometry verified for all ${G.lots.length} lots`);
+
+// Verify 360° Orthographic Zero-Occlusion Lot Picking from all 4 isometric quadrants
+const pickRay = new THREE.Raycaster();
+const pickPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.5);
+const pickHit = new THREE.Vector3();
+const pickNdc = new THREE.Vector3();
+for (const [ox, oy, oz] of [[58, 52, 58], [-58, 52, 58], [-58, 52, -58], [58, 52, -58]]) {
+  fakeScene3D.camera.position.set(17.5 + ox, oy, 18 + oz);
+  fakeScene3D.camera.lookAt(fakeScene3D.controls.target);
+  fakeScene3D.camera.updateMatrixWorld(true);
+  for (let i = 0; i < G.lots.length; i++) {
+    const l = G.lots[i];
+    const lcx = (l.x0 + l.x1) / 2;
+    const lcz = (l.y0 + l.y1) / 2;
+    pickNdc.set(lcx, 0.5, lcz).project(fakeScene3D.camera);
+    pickRay.setFromCamera(new THREE.Vector2(pickNdc.x, pickNdc.y), fakeScene3D.camera);
+    const ok = pickRay.ray.intersectPlane(pickPlane, pickHit);
+    assert(ok, `Ortho raycast missed lot ${i} from (${ox},${oy},${oz})`);
+    assert(Math.hypot(pickHit.x - lcx, pickHit.z - lcz) < 0.05, `Ortho pick drift on lot ${i}`);
+  }
+}
+fakeScene3D.camera.position.set(74, 52, 74);
+fakeScene3D.camera.lookAt(fakeScene3D.controls.target);
+fakeScene3D.camera.updateMatrixWorld(true);
+console.log(`[2/4] World3D lot footprints, themes & 360° ortho lot picking verified for all ${G.lots.length} lots`);
+
+function assertNoInstancedNaNs(a3d, label) {
+  const meshes = [
+    a3d.shadowMesh, a3d.legLMesh, a3d.legRMesh, a3d.armLMesh, a3d.armRMesh,
+    a3d.dressMesh, a3d.coatMesh, a3d.headMesh, a3d.hairMesh,
+    a3d.paperBodyMesh, a3d.paperHeadMesh, a3d.paperHairMesh, a3d.badgeMesh,
+    a3d.carBodyMesh, a3d.carTrimMesh, a3d.motoMesh, a3d.motoDetailMesh, a3d.glowMesh,
+  ];
+  for (const m of meshes) {
+    for (let k = 0; k < m.count * 16; k++) {
+      assert(!Number.isNaN(m.instanceMatrix.array[k]), `NaN found in instanceMatrix (${label})!`);
+    }
+  }
+}
 
 const actors3d = new Actors3D(fakeScene3D, elements.get('world-hud'));
 [
@@ -181,29 +231,48 @@ const actors3d = new Actors3D(fakeScene3D, elements.get('world-hud'));
 assert(actors3d.carTrimMesh.geometry.attributes.color != null, 'carTrimMesh missing vertex color');
 assert(actors3d.motoDetailMesh.geometry.attributes.color != null, 'motoDetailMesh missing vertex color');
 
-// Run 7-day sim & verify Actors3D across Afternoon, Night, Rain, and Raid
+// Run 7-day sim & verify Actors3D across both Art Styles, Roof Mode, Afternoon, Night, Rain, and Raid
 const simSummary = simHeadlessDays(7);
 const G2 = state.G;
 assert(Number.isFinite(G2.money), 'G.money became non-finite!');
 
-for (const testCase of [
-  { t: 14.5 * 60, rain: false, raid: 0 },
-  { t: 22.0 * 60, rain: true, raid: 22.5 * 60 },
+for (const tc of [
+  { artStyle: 'diorama', roofMode: false, t: 14.5 * 60, rain: false, raid: 0, view: 1 },
+  { artStyle: 'diorama', roofMode: true, t: 22.0 * 60, rain: true, raid: 22.5 * 60, view: null },
+  { artStyle: 'storybook', roofMode: false, t: 22.0 * 60, rain: true, raid: 22.5 * 60, view: null },
 ]) {
-  G2.t = testCase.t;
-  G2.ev.rain = testCase.rain;
-  G2.raidUntil = testCase.raid;
-  G2.view = 1;
-  fakeScene3D.roofMode = !!testCase.rain;
+  fakeScene3D.artStyle = tc.artStyle;
+  fakeScene3D.roofMode = tc.roofMode;
+  G2.t = tc.t;
+  G2.ev.rain = tc.rain;
+  G2.raidUntil = tc.raid;
+  G2.view = tc.view;
+  world3d.buildAll(G2);
   world3d.updateDynamic(G2, 0.016);
   actors3d.update(G2, 0.016);
-  for (const m of [actors3d.shadowMesh, actors3d.legMesh, actors3d.torsoMesh, actors3d.headMesh, actors3d.hairMesh, actors3d.glowMesh]) {
-    for (let k = 0; k < m.count * 16; k++) {
-      assert(!Number.isNaN(m.instanceMatrix.array[k]), 'NaN found in instanceMatrix!');
+  assertNoInstancedNaNs(actors3d, `${tc.artStyle}/roof=${tc.roofMode}`);
+
+  if (tc.artStyle === 'diorama') {
+    assert(actors3d.dressMesh.visible && !actors3d.paperBodyMesh.visible, 'Expected clay layer visible and paper layer hidden');
+    assert(actors3d.dressMesh.count + actors3d.coatMesh.count > 0, 'Expected 3D clay actors in diorama mode');
+    assert.equal(actors3d.paperBodyMesh.count, 0, 'Unexpected 2.5D paper actors in diorama mode');
+    if (tc.roofMode) {
+      assert(world3d.lotMeta.some((m) => m?.roofGroup?.visible), 'Expected roofGroup visible when roofMode=true in overview');
     }
+  } else {
+    let inkLines = 0;
+    world3d.root.traverse((o) => { if (o.isLineSegments) inkLines++; });
+    assert(inkLines > 10, `Expected pen-ink LineSegments in storybook mode, found ${inkLines}`);
+    assert(!actors3d.dressMesh.visible && actors3d.paperBodyMesh.visible, 'Expected paper layer visible and clay layer hidden');
+    assert(actors3d.paperBodyMesh.count > 0, 'Expected 2.5D paper-doll actors in storybook mode');
+    assert.equal(actors3d.dressMesh.count + actors3d.coatMesh.count, 0, 'Unexpected 3D clay actors in storybook mode');
   }
 }
-console.log(`[3/4] Actors3D instancing, instanceColor & NaN checks OK (sim: ${simSummary.length} days)`);
+
+fakeScene3D.artStyle = 'diorama';
+fakeScene3D.roofMode = false;
+world3d.buildAll(G2);
+console.log(`[3/4] Actors3D dual styles, roofMode, instanceColor & NaN checks OK (sim: ${simSummary.length} days)`);
 
 /* ---------- 4. Verify UI Rendering & Gameplay Economy/Events ---------- */
 const econ = await import('../src/economy.js');
@@ -354,13 +423,10 @@ for (let d = 0; d < 14; d++) {
       assert(Number.isFinite(h.en) && Number.isFinite(h.mood) && Number.isFinite(h.wage), `Non-finite hostess stat on ${h.name}`);
     });
   });
-  for (const m of [actors3d.shadowMesh, actors3d.legMesh, actors3d.torsoMesh, actors3d.headMesh, actors3d.hairMesh, actors3d.glowMesh]) {
-    for (let k = 0; k < m.count * 16; k++) {
-      assert(!Number.isNaN(m.instanceMatrix.array[k]), 'NaN in 3D matrix during 14-day stress!');
-    }
-  }
+  assertNoInstancedNaNs(actors3d, `14-day stress day ${d + 1}`);
   if (d < 13) {
     nextDay();
+    fakeScene3D.artStyle = d % 2 === 0 ? 'storybook' : 'diorama';
     world3d.buildAll(state.G);
   }
 }

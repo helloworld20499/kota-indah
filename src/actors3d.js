@@ -508,6 +508,9 @@ export class Actors3D {
     this.shadowMesh.instanceMatrix.needsUpdate = true;
 
     if (isClay) {
+      this.paperBodyMesh.count = 0;
+      this.paperHeadMesh.count = 0;
+      this.paperHairMesh.count = 0;
       this.legLMesh.count = state.clayCount;
       this.legRMesh.count = state.clayCount;
       this.armLMesh.count = state.clayCount;
@@ -521,6 +524,14 @@ export class Actors3D {
         if (m.instanceColor) m.instanceColor.needsUpdate = true;
       });
     } else {
+      this.legLMesh.count = 0;
+      this.legRMesh.count = 0;
+      this.armLMesh.count = 0;
+      this.armRMesh.count = 0;
+      this.headMesh.count = 0;
+      this.hairMesh.count = 0;
+      this.dressMesh.count = 0;
+      this.coatMesh.count = 0;
       this.paperBodyMesh.count = state.paperCount;
       this.paperHeadMesh.count = state.paperCount;
       this.paperHairMesh.count = state.paperCount;

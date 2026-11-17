@@ -132,12 +132,18 @@ initSim();
 const G = state.G;
 const fakeScene3D = {
   scene: new THREE.Scene(),
-  camera: new THREE.PerspectiveCamera(34, 1.4, 0.5, 420),
+  camera: new THREE.OrthographicCamera(-35, 35, 27, -27, -120, 320),
   controls: { target: new THREE.Vector3(17.5, 0.4, 18) },
   cutawayEnabled: true,
+  artStyle: 'diorama',
+  lightMode: 'bright',
+  roofMode: false,
+  getZoom() { return this.camera.zoom || 1; },
 };
-fakeScene3D.camera.position.set(60, 44, 60);
+fakeScene3D.camera.zoom = 1.0;
+fakeScene3D.camera.position.set(74, 52, 74);
 fakeScene3D.camera.lookAt(fakeScene3D.controls.target);
+fakeScene3D.camera.updateProjectionMatrix();
 fakeScene3D.camera.updateMatrixWorld(true);
 
 const world3d = new World3D(fakeScene3D);
@@ -178,6 +184,7 @@ for (const testCase of [
   G2.ev.rain = testCase.rain;
   G2.raidUntil = testCase.raid;
   G2.view = 1;
+  fakeScene3D.roofMode = !!testCase.rain;
   world3d.updateDynamic(G2, 0.016);
   actors3d.update(G2, 0.016);
   for (const m of [actors3d.shadowMesh, actors3d.legMesh, actors3d.torsoMesh, actors3d.headMesh, actors3d.hairMesh, actors3d.glowMesh]) {

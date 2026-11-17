@@ -301,8 +301,7 @@ export class Actors3D {
 
   update(G, dtReal, onSelectLot) {
     const now = performance.now();
-    const cam = this.scene3d.camera;
-    const camDist = cam.position.distanceTo(this.scene3d.controls.target);
+    const zoom = this.scene3d.getZoom();
     this.hudW = this.hudContainer ? this.hudContainer.clientWidth : 800;
     this.hudH = this.hudContainer ? this.hudContainer.clientHeight : 600;
 
@@ -316,7 +315,7 @@ export class Actors3D {
       const sitSeat = p.st === 'sit' && p.seat != null && l ? l._seats?.[p.seat] : null;
       const badgeCol = p.vip ? '#ffd65c' : p.bar != null && l?.kind === 'mine' ? CT[p.ctype].col : null;
       this._pushHuman(state, p.x, p.y, sitSeat ? sitSeat.lift : 0, p.ph, !!sitSeat, p.shirt, p.hair, p.skin, '#3d3731', false, badgeCol);
-      if (p.bub > 0 && camDist < 52) {
+      if (p.bub > 0 && zoom > 0.65) {
         this._pushHud(state, p.x, 1.38, p.y, p.bt, p.bc === '#FF5C54' || p.bc === '#B5362F' ? 'bad' : p.bc === '#E8B959' ? 'gold' : 'bub');
       }
     }
@@ -336,13 +335,13 @@ export class Actors3D {
         for (let m = 0; m < l.mkts.length; m++) {
           const mk = l.mkts[m];
           this._pushHuman(state, mk.x, mk.y, 0, mk._ph, false, '#2F261E', mk.hair, mk.skin, '#242026');
-          if (camDist < 24) this._pushHud(state, mk.x, 1.32, mk.y, `${mk.name}·营销`, 'tag');
+          if (zoom > 1.75) this._pushHud(state, mk.x, 1.32, mk.y, `${mk.name}·营销`, 'tag');
         }
         // Bouncers
         for (let b = 0; b < (l.bouncers || []).length; b++) {
           const bc = l.bouncers[b];
           this._pushHuman(state, bc.x, bc.y, 0, bc._ph, false, '#18181f', '#121216', bc.skin, '#121216', true, bc._chase > 0 ? '#3DD6A5' : '#5EA8E8');
-          if (camDist < 26) this._pushHud(state, bc.x, 1.38, bc.y, `🛡️ ${bc.name}`, 'tag');
+          if (zoom > 1.65) this._pushHud(state, bc.x, 1.38, bc.y, `🛡️ ${bc.name}`, 'tag');
         }
         // Hostesses
         for (let hIdx = 0; hIdx < l.hostesses.length; hIdx++) {
@@ -354,7 +353,7 @@ export class Actors3D {
             h.dress, h.hair, h.skin, h.dress, h.body === 'curvy',
             t === 2 ? '#ffd65c' : t === 1 ? '#ff7c6e' : null,
           );
-          if (camDist < 24) this._pushHud(state, h.x, 1.35 + (h.lift || 0) * Z_SCALE * 0.6, h.y, h.name, 'name');
+          if (zoom > 1.75) this._pushHud(state, h.x, 1.35 + (h.lift || 0) * Z_SCALE * 0.6, h.y, h.name, 'name');
         }
       } else if (l.kind === 'rival') {
         for (let hIdx = 0; hIdx < l.hs.length; hIdx++) {
@@ -455,10 +454,12 @@ export class Actors3D {
         const l = G.lots[i];
         if (!lit(l)) continue;
         const hh = skillActive(l, 'happyHour') ? 1.5 + 0.5 * Math.sin(now / 180) : 0;
-        const glowRad = (l.kind === 'mine' ? 3.2 + (l.sign || 0) * 1.1 + hh : 3.6) * rainMul;
+        const glowRad = (l.kind === 'mine' ? 3.5 + (l.sign || 0) * 1.1 + hh : 3.8) * rainMul;
         for (let d = 0; d < l.doors.length; d++) {
           this._pushGlow(state, l.doors[d].out[0], l.doors[d].out[1], glowRad, l.ac);
         }
+        // Warm bright interior lantern glow inside open shops
+        this._pushGlow(state, (l.x0 + l.x1) / 2, (l.y0 + l.y1) / 2, Math.max(l.L, l.D) * 0.9, '#ffdf9e', 0.14);
         if (l.kind === 'mine' && skillActive(l, 'showtime')) {
           this._pushGlow(state, (l.x0 + l.x1) / 2, (l.y0 + l.y1) / 2, 4.5, '#ff59d6', 0.16);
         }
@@ -552,20 +553,20 @@ export class Actors3D {
       this._pushHud(state, f.x, f.z * Z_SCALE * 0.45, f.y, f.t, 'fx');
     }
 
-    if (camDist < 42 && barOpen()) {
+    if (zoom > 1.25 && barOpen()) {
       for (let i = 0; i < G.lots.length; i++) {
         const l = G.lots[i];
         if (l.kind !== 'mine') continue;
         if (l.dj || (l.roomsUsed || 0) > 0) {
           const cx2 = (l.x0 + l.x1) / 2;
           const cz2 = (l.y0 + l.y1) / 2;
-          const bob = Math.sin(now / 360 + i) * 0.28;
-          this._pushHud(state, cx2, 3.8 + bob, cz2, l.dj && l.roomsUsed ? '♫ ♪' : '♪', 'gold');
+          const bob = Math.sin(now / 360 + i) * 0.25;
+          this._pushHud(state, cx2, 2.5 + bob, cz2, l.dj && l.roomsUsed ? '♫ ♪' : '♪', 'gold');
         }
       }
     }
 
-    if (camDist > 29 && G.view == null) {
+    if (zoom < 1.55 && G.view == null) {
       for (let i = 0; i < G.lots.length; i++) {
         const l = G.lots[i];
         if (l.top) continue;
@@ -579,7 +580,7 @@ export class Actors3D {
           label = `★ ${l.name} · ${l._g.length}/${l._seats?.length || 0}`;
           cls = 'shop-lbl mine';
         }
-        this._pushHud(state, c[0], 4.2, c[1], label, cls, onSelectLot ? () => onSelectLot(l.i) : null);
+        this._pushHud(state, c[0], 2.45, c[1], label, cls, onSelectLot ? () => onSelectLot(l.i) : null);
       }
     }
 

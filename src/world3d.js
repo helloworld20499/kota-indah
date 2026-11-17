@@ -4,6 +4,7 @@ import {
   BARPAL, CONCEPTS, DECOR, GX, LAY, POLES, ROOMS, STY, SX, XA, XB, YA, YB, Z_SCALE, WH, SWH,
   LB, Lw, hsh, pickC,
 } from './config.js';
+import { ART_STYLES } from './themes.js';
 import { curEls, seatList, wsSpots } from './state.js';
 import { barOpen, lit, skillActive } from './sim.js';
 
@@ -235,21 +236,28 @@ export class World3D {
 
   _buildSlabAndRoads() {
     const g = this.staticGroup;
+    const theme = ART_STYLES[this.scene3d.artStyle || 'diorama'];
+    this.roadMat.color.set(theme.road);
     const W = XB - XA;
     const D = YB - YA;
     const cx = (XA + XB) / 2;
     const cz = (YA + YB) / 2;
 
     // Diorama layered plinth
-    const groundMat = this.getMat('#3f3b45', { rough: 0.92 });
+    const groundMat = this.getMat(theme.slabTop, { rough: 0.9 });
     const ground = new THREE.Mesh(new THREE.BoxGeometry(W, 0.45, D), groundMat);
     ground.position.set(cx, -0.225, cz);
     ground.receiveShadow = true;
     g.add(ground);
 
-    const earthMat = this.getMat('#3b2c23', { rough: 0.95 });
-    const earth = new THREE.Mesh(new THREE.BoxGeometry(W - 0.3, 1.35, D - 0.3), earthMat);
-    earth.position.set(cx, -1.12, cz);
+    const rimMat = this.getMat(theme.slabEdge, { rough: 0.92 });
+    const rim = new THREE.Mesh(new THREE.BoxGeometry(W + 0.08, 0.25, D + 0.08), rimMat);
+    rim.position.set(cx, -0.45, cz);
+    g.add(rim);
+
+    const earthMat = this.getMat(theme.earthRim, { rough: 0.95 });
+    const earth = new THREE.Mesh(new THREE.BoxGeometry(W - 0.25, 1.25, D - 0.25), earthMat);
+    earth.position.set(cx, -1.18, cz);
     g.add(earth);
 
     // Sidewalks & lots pads
@@ -260,25 +268,46 @@ export class World3D {
 
     // Block pads
     [[0, GX, 0, 7], [0, SX, 11, 25], [0, GX, 29, 36], [-20.5, -13, 5, 31]].forEach(([a, b, c, d]) =>
-      addPad(a, b, c, d, 0.03, 0.04, '#504b54'),
+      addPad(a, b, c, d, 0.03, 0.04, theme.blockPad),
     );
     // Sidewalks along streets
     [
       [-13, GX, 7, 11], [-13, GX, 25, 29], [-4, 0, 7, 29],
       [-13, -9, 7, 29], [SX, GX, 7, 29], [GX, XB, YA, YB],
-    ].forEach(([a, b, c, d]) => addPad(a, b, c, d, 0.04, 0.06, '#65606b'));
+    ].forEach(([a, b, c, d]) => addPad(a, b, c, d, 0.04, 0.06, theme.sidewalk));
 
     // Parking lot concrete
-    addPad(-9, -4, 11, 25, 0.03, 0.05, '#3b3b44');
+    addPad(-9, -4, 11, 25, 0.03, 0.05, theme.parking);
 
-    // White parking stalls & road lane dashes + one-way arrows
-    const paintHex = '#ded8cc';
+    // White parking stalls & crosswalk zebra stripes
+    const paintHex = '#f1eadb';
     for (let k = 0; k <= 11; k++) {
       const y = 11 + k * 1.25 + 0.35;
       [[-8.9, -6.8], [-6.2, -4.1]].forEach(([a, b]) => {
         swGeoms.push(makeBoxGeom((a + b) / 2, 0.055, y, b - a, 0.02, 0.08, paintHex));
       });
     }
+    const addCrosswalk = (x, z, alongX) => {
+      for (let s = -2; s <= 2; s++) {
+        swGeoms.push(
+          makeBoxGeom(
+            alongX ? x : x + s * 0.38,
+            0.058,
+            alongX ? z + s * 0.38 : z,
+            alongX ? 1.15 : 0.2,
+            0.015,
+            alongX ? 0.2 : 1.15,
+            paintHex,
+          ),
+        );
+      }
+    };
+    addCrosswalk(46.2, 9, true);
+    addCrosswalk(46.2, 27, true);
+    addCrosswalk(1.2, 9, true);
+    addCrosswalk(1.2, 27, true);
+    addCrosswalk(49.5, 11.4, false);
+    addCrosswalk(49.5, 24.6, false);
 
     const addDashLine = (x1, y1, x2, y2) => {
       const len = Math.hypot(x2 - x1, y2 - y1);
@@ -471,15 +500,19 @@ export class World3D {
   }
 
   _wallColor(l) {
-    if (l.kind === 'mine') return ['#EFE6D2', '#EAD9BC', '#E0C4A6', '#C9A9A4'][l.decor || 0];
-    if (l.kind === 'rival') return '#D9C7C0';
-    if (l.kind === 'empty') return '#DDD4C0';
-    return '#EEE7D8';
+    const theme = ART_STYLES[this.scene3d.artStyle || 'diorama'];
+    if (l.kind === 'mine') return [theme.wallColor, '#EAD9BC', '#E0C4A6', '#D4B6AC'][l.decor || 0];
+    if (l.kind === 'rival') return '#E5D3CB';
+    if (l.kind === 'empty') return '#E5DEC9';
+    return '#F2EBDC';
   }
 
   _floorColor(l) {
-    if (l.kind === 'mine') return ['#C8BEA8', '#B8956A', '#9E734A', '#75503C'][l.decor || 0];
-    return l.fl || '#C8BEA8';
+    const theme = ART_STYLES[this.scene3d.artStyle || 'diorama'];
+    if (l.kind === 'mine') return theme.floorMine[l.decor || 0];
+    if (l.kind === 'empty') return theme.floorEmpty;
+    if (l.kind === 'rival') return theme.floorRival;
+    return l.fl || theme.floorEmpty;
   }
 
   rebuildLot(l, G) {
@@ -487,6 +520,7 @@ export class World3D {
     if (!grp) return;
     while (grp.children.length) grp.remove(grp.children[0]);
 
+    const theme = ART_STYLES[this.scene3d.artStyle || 'diorama'];
     const cutWalls = [];
     const { x0, y0, x1, y1, L, D } = l;
     const spanX = x1 - x0;
@@ -495,11 +529,11 @@ export class World3D {
     const isEmpty = l.kind === 'empty';
     const isRival = l.kind === 'rival';
 
-    // Base floor slab
+    // Base floor slab (unique material per lot so open bars glow warmly at night)
     const fCol = this._floorColor(l);
     const floorMat = isMine && l.decor > 0
-      ? new THREE.MeshStandardMaterial({ map: makePlankTexture(fCol), roughness: 0.72 })
-      : this.getMat(fCol, { rough: 0.86 });
+      ? new THREE.MeshStandardMaterial({ map: makePlankTexture(fCol), roughness: 0.72, emissive: '#ffcf86', emissiveIntensity: 0 })
+      : new THREE.MeshStandardMaterial({ color: fCol, roughness: 0.86, emissive: '#ffcf86', emissiveIntensity: 0 });
     const floor = boxMesh(x0, y0, spanX, spanZ, 0.08, 0.02, floorMat, false, true);
     grp.add(floor);
 
@@ -509,103 +543,80 @@ export class World3D {
       if (e[0] !== 'work' && e[0] !== 'room' && e[0] !== 'ws') return;
       const pad = e[0] === 'ws' ? 0.45 : 0;
       const [bx, by, bw, bd] = LB(l, Math.max(0.05, e[1] - pad), Math.max(0.05, e[2] - pad), Math.min(L - 0.05, e[3] + pad), Math.min(D - 0.05, e[4] + pad));
-      const zoneMat = this.getMat(e[0] === 'room' ? '#584e5a' : '#857766', { rough: 0.9, opacity: 0.38 });
+      const zoneMat = this.getMat(e[0] === 'room' ? '#6b606e' : '#968774', { rough: 0.9, opacity: 0.34 });
       const zm = boxMesh(bx, by, bw, bd, 0.02, 0.1, zoneMat, false, true);
       grp.add(zm);
     });
 
-    // Wall definitions around perimeter
+    // Low-profile zero-occlusion dollhouse wall heights
     const wallHex = this._wallColor(l);
     const wallMat = this.getMat(wallHex, { rough: 0.84 });
     const S = STY[l.style] || STY.oldgrey;
     const upMat = this.getMat(S.up, { rough: 0.76 });
-    const lowH = 0.65;
-    const midH = 8.6 * Z_SCALE;
-    const fullH = (l.top ? l.part : WH) * Z_SCALE;
-    const th = 0.16;
+    const lowH = 0.42;
+    const curbH = 0.26;
+    const sideH = 1.08;
+    const backH = l.top ? 1.18 : 1.85;
+    const th = 0.15;
 
-    const addCutWall = (x, z, w, d, nx, nz, extraChildren = null) => {
-      // Lower permanent wainscot
+    const addCutWall = (x, z, w, d, hWall, nx, nz) => {
       grp.add(boxMesh(x, z, w, d, lowH, 0.08, wallMat, true, true));
-      // Upper smart-cutaway group
-      const ug = new THREE.Group();
-      const upper = boxMesh(x, z, w, d, fullH - lowH, lowH + 0.08, isEmpty ? wallMat : upMat, true, true);
-      ug.add(upper);
-      if (extraChildren) extraChildren.forEach((c) => ug.add(c));
-      grp.add(ug);
-      cutWalls.push({ mesh: ug, nx, nz });
+      if (hWall > lowH) {
+        const ug = new THREE.Group();
+        ug.add(boxMesh(x, z, w, d, hWall - lowH, lowH + 0.08, isEmpty ? wallMat : upMat, true, true));
+        grp.add(ug);
+        cutWalls.push({ mesh: ug, nx, nz });
+      }
     };
 
-    // Determine which faces have doors vs tall facade
-    const isAlongY = l.f[0] === 'y'; // front/back run along X (yMin/yMax are front/back)
-    const cx = (x0 + x1) / 2;
-    const cz = (y0 + y1) / 2;
-
-    // 4 walls: xMin (north), xMax (south), yMin (east), yMax (west)
-    // Back / facade is at xMin if !alongY, or yMin if alongY (unless f==='yMin' -> back is yMax? Wait: in original drawFacade:
-    // F(l, u, z) = l.f[0]==='x' ? iso(l.x0, l.y1-u, z) : iso(l.x0+u, l.y0, z)!
-    // That means the TALL facade wall is ALWAYS on x0 (if f is xMin/xMax) or y0 (if f is yMin/yMax)!
-    // And nearWalls puts the low wall + door gaps on x1 (if f is xMax) or y1 (if f is yMax)!
+    const isAlongY = l.f[0] === 'y';
     const tallOnY0 = isAlongY;
     const facadeGroup = new THREE.Group();
     const roomWindows = [];
     let signMat = null;
 
-    // Tall facade wall + architectural details + marquee sign
     if (tallOnY0) {
       if (l.f === 'yMin') {
-        // Segment lower wall around front door(s) on y0 so guests walk cleanly through door openings
-        this._buildSegmentedLowerOnly(grp, x0, y0, spanX, true, l.doorUs, lowH, wallMat);
+        this._buildSegmentedLowerOnly(grp, x0, y0, spanX, true, l.doorUs, curbH, wallMat);
       } else {
         grp.add(boxMesh(x0, y0, spanX, th, lowH, 0.08, wallMat, true, true));
-      }
-      facadeGroup.add(boxMesh(x0, y0, spanX, th, midH - lowH, lowH + 0.08, wallMat, true, true));
-      if (!l.top) {
-        facadeGroup.add(boxMesh(x0, y0, spanX, th, fullH - midH, midH + 0.08, upMat, true, true));
+        facadeGroup.add(boxMesh(x0, y0, spanX, th, backH - lowH, lowH + 0.08, wallMat, true, true));
       }
       cutWalls.push({ mesh: facadeGroup, nx: 0, nz: -1 });
-      // Side wall x0 (segment lower if xd north doors exist, e.g. NEW SARI AYU)
       if (l.xd && l.xd.length) {
         const xdOffsets = l.xd.map((wy) => y1 - wy);
-        this._buildSegmentedWall(grp, cutWalls, x0, y0, spanZ, false, xdOffsets, lowH, fullH, wallMat, -1, 0);
+        this._buildSegmentedWall(grp, cutWalls, x0, y0, spanZ, false, xdOffsets, curbH, sideH, wallMat, -1, 0);
       } else {
-        addCutWall(x0, y0, th, spanZ, -1, 0);
+        addCutWall(x0, y0, th, spanZ, sideH, -1, 0);
       }
-      // Side wall x1
-      addCutWall(x1 - th, y0, th, spanZ, 1, 0);
-      // Front/back wall y1 (with door openings if f==='yMax')
+      addCutWall(x1 - th, y0, th, spanZ, sideH, 1, 0);
       if (l.f === 'yMax') {
-        this._buildSegmentedWall(grp, cutWalls, x0, y1 - th, spanX, true, l.doorUs, lowH, l.part * Z_SCALE, wallMat, 0, 1);
+        this._buildSegmentedLowerOnly(grp, x0, y1 - th, spanX, true, l.doorUs, curbH, wallMat);
       } else {
-        addCutWall(x0, y1 - th, spanX, th, 0, 1);
+        addCutWall(x0, y1 - th, spanX, th, sideH, 0, 1);
       }
     } else {
       if (l.f === 'xMin') {
-        this._buildSegmentedLowerOnly(grp, x0, y0, spanZ, false, l.doorUs, lowH, wallMat);
+        this._buildSegmentedLowerOnly(grp, x0, y0, spanZ, false, l.doorUs, curbH, wallMat);
       } else {
         grp.add(boxMesh(x0, y0, th, spanZ, lowH, 0.08, wallMat, true, true));
-      }
-      facadeGroup.add(boxMesh(x0, y0, th, spanZ, midH - lowH, lowH + 0.08, wallMat, true, true));
-      if (!l.top) {
-        facadeGroup.add(boxMesh(x0, y0, th, spanZ, fullH - midH, midH + 0.08, upMat, true, true));
+        facadeGroup.add(boxMesh(x0, y0, th, spanZ, backH - lowH, lowH + 0.08, wallMat, true, true));
       }
       cutWalls.push({ mesh: facadeGroup, nx: -1, nz: 0 });
-      // Side walls y0 & y1 (spanX)
-      addCutWall(x0, y0, spanX, th, 0, -1);
-      addCutWall(x0, y1 - th, spanX, th, 0, 1);
-      // Front wall x1 (spanZ)
+      addCutWall(x0, y0, spanX, th, sideH, 0, -1);
+      addCutWall(x0, y1 - th, spanX, th, sideH, 0, 1);
       if (l.f === 'xMax') {
-        this._buildSegmentedWall(grp, cutWalls, x1 - th, y0, spanZ, false, l.doorUs, lowH, l.part * Z_SCALE, wallMat, 1, 0);
+        this._buildSegmentedLowerOnly(grp, x1 - th, y0, spanZ, false, l.doorUs, curbH, wallMat);
       } else {
-        addCutWall(x1 - th, y0, th, spanZ, 1, 0);
+        addCutWall(x1 - th, y0, th, spanZ, sideH, 1, 0);
       }
     }
     grp.add(facadeGroup);
 
-    // Style facade details attached to facadeGroup so they cut away smoothly with the tall wall
-    this._decorateFacade(facadeGroup, l, tallOnY0, roomWindows, S);
+    // Architectural trim & attic windows on low-profile back facade
+    this._decorateFacade(facadeGroup, l, tallOnY0, roomWindows, S, backH);
 
-    // Floating Neon / Marquee Signboard (ALWAYS visible above shop front so player always identifies stores!)
+    // Floating Neon / Marquee Signboard (never blocks street behind it)
     const signLabel = isEmpty ? 'DISEWAKAN · 招租' : l.name.toUpperCase();
     const bg = isEmpty ? '#F7F2E6' : l.style === 'smart' ? '#F3F3F0' : l.ac;
     const fg = isEmpty ? '#B5362F' : l.style === 'smart' ? '#2F6FB5' : l.lay === 'sari' ? '#8E1F1B' : '#FFFFFF';
@@ -621,51 +632,66 @@ export class World3D {
       map: tex,
       emissive: isEmpty ? '#000000' : l.ac,
       emissiveMap: isEmpty ? null : tex,
-      emissiveIntensity: isOpenNow ? 0.55 + 0.38 * signLevel : 0.06,
+      emissiveIntensity: isOpenNow ? 0.55 + 0.35 * signLevel : 0.08,
       roughness: 0.4,
     });
     const signLen = Math.max(2.6, L - 0.6);
-    const signGeo = new THREE.BoxGeometry(tallOnY0 ? signLen : 0.24, 0.78, tallOnY0 ? 0.24 : signLen);
+    const signGeo = new THREE.BoxGeometry(tallOnY0 ? signLen : 0.22, 0.54, tallOnY0 ? 0.22 : signLen);
     const signMesh = new THREE.Mesh(signGeo, signMat);
     const su = l.signU != null ? l.signU : L / 2;
-    if (tallOnY0) signMesh.position.set(x0 + su, 10.7 * Z_SCALE, y0 + 0.12);
-    else signMesh.position.set(x0 + 0.12, 10.7 * Z_SCALE, y1 - su);
+    if (tallOnY0) signMesh.position.set(x0 + su, backH + 0.36, y0 + 0.14);
+    else signMesh.position.set(x0 + 0.14, backH + 0.36, y1 - su);
     grp.add(signMesh);
 
     // Striped awning over street-side door
     if (!isEmpty && (l.f === 'yMax' || l.f === 'xMax')) {
       for (let u = 0; u < L - 0.01; u++) {
         const seg = Math.min(1, L - u);
-        const col = u % 2 ? l.ac : '#F3ECDC';
-        const awMat = this.getMat(col, { rough: 0.7 });
+        const col = u % 2 ? l.ac : '#F7F2E6';
+        const awMat = this.getMat(col, { rough: 0.68 });
         let aw;
         if (l.f === 'yMax') {
-          aw = new THREE.Mesh(new THREE.BoxGeometry(seg, 0.08, 0.72), awMat);
-          aw.position.set(x0 + u + seg / 2, 8.8 * Z_SCALE, y1 + 0.28);
-          aw.rotation.x = 0.4;
+          aw = new THREE.Mesh(new THREE.BoxGeometry(seg, 0.07, 0.68), awMat);
+          aw.position.set(x0 + u + seg / 2, 1.48, y1 + 0.26);
+          aw.rotation.x = 0.38;
         } else {
-          aw = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.08, seg), awMat);
-          aw.position.set(x1 + 0.28, 8.8 * Z_SCALE, y1 - u - seg / 2);
-          aw.rotation.z = -0.4;
+          aw = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.07, seg), awMat);
+          aw.position.set(x1 + 0.26, 1.48, y1 - u - seg / 2);
+          aw.rotation.z = -0.38;
         }
         aw.castShadow = true;
         grp.add(aw);
       }
     }
 
+    // Optional colorful pitched toy roof (for roofMode toggle)
+    let roofGroup = null;
+    if (!isEmpty && !l.top) {
+      roofGroup = new THREE.Group();
+      const roofCol = isMine ? l.ac : theme.roofColors[l.i % theme.roofColors.length];
+      const roofMat = this.getMat(roofCol, { rough: 0.72 });
+      const cap = new THREE.Mesh(new THREE.BoxGeometry(spanX + 0.22, 0.22, spanZ + 0.22), roofMat);
+      cap.position.set((x0 + x1) / 2, backH + 0.15, (y0 + y1) / 2);
+      const gable = new THREE.Mesh(new THREE.BoxGeometry(spanX * 0.72, 0.42, spanZ * 0.72), roofMat);
+      gable.position.set((x0 + x1) / 2, backH + 0.42, (y0 + y1) / 2);
+      roofGroup.add(cap, gable);
+      roofGroup.visible = !!(this.scene3d.roofMode && G.view !== l.i);
+      grp.add(roofGroup);
+    }
+
     // Empty lot standing sign
     if (isEmpty) {
       const [bx, by] = Lw(l, L / 2, D / 2);
-      const post = boxMesh(bx - 0.06, by - 0.06, 0.12, 0.12, 1.35, 0.1, this.getMat('#6a5848'));
+      const post = boxMesh(bx - 0.06, by - 0.06, 0.12, 0.12, 1.1, 0.1, this.getMat('#6a5848'));
       const boardTex = makeSignTexture('DISEWAKAN', '#F7F2E6', '#B5362F', '#B5362F', '点击租铺开店');
       const board = new THREE.Mesh(
-        new THREE.BoxGeometry(isAlongY ? 1.6 : 0.12, 0.85, isAlongY ? 0.12 : 1.6),
+        new THREE.BoxGeometry(isAlongY ? 1.6 : 0.12, 0.8, isAlongY ? 0.12 : 1.6),
         new THREE.MeshStandardMaterial({ map: boardTex, roughness: 0.6 }),
       );
-      board.position.set(bx, 1.25, by);
+      board.position.set(bx, 1.05, by);
       board.castShadow = true;
       grp.add(post, board);
-      this.lotMeta[l.i] = { cutWalls, roomWindows, signMat, djCone: null };
+      this.lotMeta[l.i] = { cutWalls, roomWindows, signMat, floorMat, roofGroup, djCone: null, clubLasers: [] };
       return;
     }
 
@@ -679,6 +705,8 @@ export class World3D {
       cutWalls,
       roomWindows,
       signMat,
+      floorMat,
+      roofGroup,
       djCone: interiorFX.djCone,
       clubLasers: interiorFX.clubLasers,
     };
@@ -723,16 +751,15 @@ export class World3D {
     });
   }
 
-  _decorateFacade(fg, l, tallOnY0, roomWindows, S) {
+  _decorateFacade(fg, l, tallOnY0, roomWindows, S, backH = 1.85) {
     const { x0, y0, y1, L } = l;
-    const placeU = (u1, u2, z1, z2, mat) => {
+    const placeNorm = (u1, u2, yLow, yHigh, mat) => {
       const len = Math.max(0.05, u2 - u1);
-      const h = Math.max(0.05, (z2 - z1) * Z_SCALE);
-      const y = z1 * Z_SCALE + 0.08;
+      const h = Math.max(0.05, yHigh - yLow);
       if (tallOnY0) {
-        fg.add(boxMesh(x0 + u1, y0 + 0.02, len, 0.2, h, y, mat));
+        fg.add(boxMesh(x0 + u1, y0 + 0.02, len, 0.2, h, yLow, mat));
       } else {
-        fg.add(boxMesh(x0 + 0.02, y1 - u2, 0.2, len, h, y, mat));
+        fg.add(boxMesh(x0 + 0.02, y1 - u2, 0.2, len, h, yLow, mat));
       }
     };
 
@@ -747,12 +774,12 @@ export class World3D {
           roughness: 0.3,
         });
         roomWindows.push(wm);
-        placeU(0.25 + i * w + 0.08, 0.25 + (i + 1) * w - 0.08, 13.3, 17.2, wm);
+        placeNorm(0.25 + i * w + 0.08, 0.25 + (i + 1) * w - 0.08, backH - 0.38, backH - 0.04, wm);
       }
       if ((l.decor || 0) >= 2) {
         const bulbM = this.getMat('#ffe27a', { emissive: '#ffbe44', emissiveInt: 1.1 });
         for (let u = 0.4; u < L - 0.3; u += 0.55) {
-          placeU(u, u + 0.14, 8.2 - Math.abs(Math.sin(u * 2.5)) * 0.9, 8.5 - Math.abs(Math.sin(u * 2.5)) * 0.9, bulbM);
+          placeNorm(u, u + 0.14, 1.32 - Math.abs(Math.sin(u * 2.5)) * 0.14, 1.39 - Math.abs(Math.sin(u * 2.5)) * 0.14, bulbM);
         }
       }
     } else if (!l.top) {
@@ -762,47 +789,47 @@ export class World3D {
         const sd = l.i * 7 + u0;
         if (st === 'fins') {
           for (let k = 0; k * 0.5 + 0.45 < bw; k++) {
-            placeU(u0 + 0.2 + k * 0.5, u0 + 0.4 + k * 0.5, 12.8, WH, this.getMat(k % 2 ? '#C8574B' : '#E2B24A'));
+            placeNorm(u0 + 0.2 + k * 0.5, u0 + 0.4 + k * 0.5, 1.15, backH, this.getMat(k % 2 ? '#C8574B' : '#E2B24A'));
           }
         } else if (st === 'mosaic') {
           for (let r = 0; r < 2; r++) {
             for (let k = 0; k * 0.6 + 0.7 < bw; k++) {
               const h = hsh(sd + r * 11 + k);
               const col = h < 0.38 ? '#B8322F' : h < 0.62 ? '#8E8A86' : h < 0.8 ? '#E9E3D6' : '#C96A5E';
-              placeU(u0 + 0.15 + k * 0.6, u0 + 0.68 + k * 0.6, 13.1 + r * 2.4, 15.2 + r * 2.4, this.getMat(col));
+              placeNorm(u0 + 0.15 + k * 0.6, u0 + 0.68 + k * 0.6, 1.18 + r * 0.32, 1.44 + r * 0.32, this.getMat(col));
             }
           }
         } else if (st === 'mtr') {
           for (let k = 0; k * 0.65 + 0.5 < bw; k++) {
             const col = ['#C8574B', '#E2B24A', '#5B7FA6', '#5E9B80', '#D05A9C'][k % 5];
-            placeU(u0 + 0.4 + k * 0.65, u0 + 0.56 + k * 0.65, 13.5, 17.3, this.getMat(col, { emissive: col, emissiveInt: 0.75 }));
+            placeNorm(u0 + 0.4 + k * 0.65, u0 + 0.56 + k * 0.65, 1.15, backH - 0.05, this.getMat(col, { emissive: col, emissiveInt: 0.75 }));
           }
         } else if (st === 'dark') {
           const nm = this.getMat('#a974e8', { emissive: '#9452e0', emissiveInt: 0.85 });
-          placeU(u0 + 0.3, u0 + bw - 0.3, 14, 14.35, nm);
-          placeU(u0 + 0.3, u0 + bw - 0.3, 16.4, 16.75, nm);
+          placeNorm(u0 + 0.3, u0 + bw - 0.3, 1.32, 1.4, nm);
+          placeNorm(u0 + 0.3, u0 + bw - 0.3, 1.62, 1.7, nm);
         } else {
-          placeU(u0 + 0.45, u0 + bw - 0.45, 13.5, 17.2, this.getMat(S.g));
+          placeNorm(u0 + 0.45, u0 + bw - 0.45, 1.25, backH - 0.08, this.getMat(S.g));
         }
       }
     }
 
     // Authentic Jakarta rooftop micro-details: Toren Air water tank & AC outdoor units
     if (!l.top && l.kind !== 'empty') {
-      const yRoof = WH * Z_SCALE + 0.08;
+      const yRoof = backH + 0.08;
       const tankCol = l.i % 3 === 0 ? '#d86d28' : '#2466ad';
       const tank = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.24, 0.24, 0.52, 8),
+        new THREE.CylinderGeometry(0.22, 0.22, 0.44, 8),
         this.getMat(tankCol, { rough: 0.45 }),
       );
-      if (tallOnY0) tank.position.set(x0 + L * 0.82, yRoof + 0.26, y0 + 0.22);
-      else tank.position.set(x0 + 0.22, yRoof + 0.26, y1 - L * 0.82);
+      if (tallOnY0) tank.position.set(x0 + L * 0.82, yRoof + 0.22, y0 + 0.18);
+      else tank.position.set(x0 + 0.18, yRoof + 0.22, y1 - L * 0.82);
       fg.add(tank);
 
       const acMat = this.getMat('#c4c1b8', { rough: 0.7 });
       [0.24, 0.56].forEach((frac) => {
-        if (tallOnY0) fg.add(boxMesh(x0 + L * frac, y0 + 0.14, 0.36, 0.22, 0.26, 2.55, acMat));
-        else fg.add(boxMesh(x0 + 0.14, y1 - L * frac, 0.22, 0.36, 0.26, 2.55, acMat));
+        if (tallOnY0) fg.add(boxMesh(x0 + L * frac, y0 + 0.12, 0.34, 0.2, 0.24, 1.28, acMat));
+        else fg.add(boxMesh(x0 + 0.12, y1 - L * frac, 0.2, 0.34, 0.24, 1.28, acMat));
       });
     }
   }
@@ -999,10 +1026,10 @@ export class World3D {
       arm.pivot.rotation.x = arm.open;
     }
 
-    // Night intensity for streetlights & wet rain road gloss
-    const h = G.t / 60;
+    // Night intensity for streetlights, interior lantern boost & wet rain road gloss
+    const h = this.scene3d.lightMode === 'day' ? 14.5 : G.t / 60;
     const nightAmt = Math.max(0, Math.min(1, (h - 17) / 2.2));
-    this.lampBulbMat.emissiveIntensity = nightAmt > 0.2 ? 1.6 * nightAmt : 0.1;
+    this.lampBulbMat.emissiveIntensity = nightAmt > 0.2 ? 1.8 * nightAmt : 0.12;
     this.roadMat.roughness = G.ev && G.ev.rain ? 0.22 : 0.85;
     this.roadMat.metalness = G.ev && G.ev.rain ? 0.25 : 0.08;
 
@@ -1045,10 +1072,17 @@ export class World3D {
         }
       }
 
+      const isOpen = lit(l);
+      if (meta.floorMat && l.kind !== 'empty') {
+        meta.floorMat.emissiveIntensity = isOpen ? 0.32 * Math.max(0.28, nightAmt) : 0;
+      }
+      if (meta.roofGroup) {
+        meta.roofGroup.visible = !!(this.scene3d.roofMode && G.view !== i);
+      }
+
       if (meta.signMat && l.kind !== 'empty') {
-        const isOpen = lit(l);
         const sLv = l.kind === 'mine' ? l.sign || 0 : 2;
-        meta.signMat.emissiveIntensity = isOpen ? (0.55 + 0.38 * sLv) * Math.max(0.35, nightAmt) : 0.05;
+        meta.signMat.emissiveIntensity = isOpen ? (0.6 + 0.35 * sLv) * Math.max(0.35, nightAmt) : 0.06;
       }
 
       if (meta.roomWindows.length && l.kind === 'mine') {

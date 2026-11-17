@@ -254,5 +254,103 @@ ui.showEndDayModal({
   fines: 0, fee: 0, net: 160, nh: 0, rf: 0, tu: 0, nl: 0, nr: 1, sto: 0, bnc: 0,
   barSummaries: [], extra: [], got: [], sunday: false, bust: false,
 });
+const { update, nextDay, scheduleRegs } = await import('../src/sim.js');
+const { newGame, mkScout, mkMkt, mkBouncer, resetBarDay, placeM, placeBouncer, bars } = state;
+
 console.log('[4/4] UI, economy & live event systems verified with 0 errors');
+
+/* ---------- 5. 14-Day 3-Bar High-Load Stress Benchmark ---------- */
+const tBench0 = performance.now();
+newGame(scheduleRegs);
+const SG = state.G;
+SG.money = 350000;
+SG.bestRank = 1;
+const payBench = (n) => { SG.money -= n; return true; };
+
+// Open 2 empty lots (bintang + club) + buy out 1 rival (ktv) = 3 player bars
+const empties = SG.lots.filter((l) => l.kind === 'empty').slice(0, 2);
+['bintang', 'club'].forEach((cId, idx) => {
+  const e = empties[idx];
+  Object.assign(e, {
+    kind: 'mine',
+    name: idx === 0 ? 'Bintang Stress' : 'Club Stress',
+    accent: cId === 'bintang' ? '#D99B38' : '#FF5C54',
+    concept: cId,
+    menu: { bucket: true, platter: true, whisky: true, champagne: true },
+    price: 45,
+    decor: 2,
+    seats: 2,
+    rooms: 2,
+    sign: 2,
+    rep: 3.6,
+    baseRent: e.rent,
+    fl: '#D8CDB8',
+    hostesses: Array.from({ length: 8 }, () => Object.assign(mkHostess(6, true), { state: 'idle', todayH: 0, hidden: false, on: true })),
+    scouts: [mkScout()],
+    mkts: [mkMkt()],
+    bouncers: [mkBouncer()],
+    req: { body: 'any', pers: 'any', looks: 0, att: 0 },
+    cands: [],
+  });
+  e.ac = e.accent;
+  resetBarDay(e);
+  e.hostesses.forEach((h) => placeH(e, h));
+  e.mkts.forEach((m) => placeM(e, m));
+  e.bouncers.forEach((b2, bi) => placeBouncer(e, b2, bi));
+  SG.mine[e.i] = e;
+});
+
+const rivalTarget = SG.lots.find((l) => l.kind === 'rival');
+assert(econ.buyoutRival(rivalTarget, payBench, noop, noop));
+assert.equal(bars().length, 3);
+world3d.buildAll(SG);
+
+for (let d = 0; d < 14; d++) {
+  const curG = state.G;
+  curG.modal = false;
+  curG.speed = 4;
+  curG.ev.rain = d % 4 === 1;
+  if (d % 5 === 2) curG.ev.razia = 21.5 * 60;
+  let steps = 0;
+  let didSkill = false;
+  while (!curG.modal && steps < 4500) {
+    update(0.1);
+    steps++;
+    if (!didSkill && curG.t >= 20 * 60) {
+      didSkill = true;
+      const myB = bars();
+      if (myB[0]) evMod.activateSkill(myB[0], 'happyHour', payBench, noop);
+      if (myB[1]) evMod.activateSkill(myB[1], 'showtime', payBench, noop);
+      if (myB[2]) evMod.activateSkill(myB[2], 'lowProfile', payBench, noop);
+      if (curG.liveEvent) evMod.resolveLiveEvent('A', noop, noop, noop);
+    }
+    if (steps % 400 === 0) {
+      world3d.updateDynamic(curG, 0.016);
+      actors3d.update(curG, 0.016);
+    }
+  }
+  assert(Number.isFinite(curG.money), `Non-finite money on day ${curG.day}`);
+  bars().forEach((b3) => {
+    assert(Number.isFinite(b3.rep) && Number.isFinite(b3.rent) && Number.isFinite(b3.loc), `Non-finite bar stat on ${b3.name}`);
+    assert(b3.roomsUsed >= 0, `Negative roomsUsed on ${b3.name}`);
+    b3.hostesses.forEach((h) => {
+      assert(Number.isFinite(h.en) && Number.isFinite(h.mood) && Number.isFinite(h.wage), `Non-finite hostess stat on ${h.name}`);
+    });
+  });
+  for (const m of [actors3d.shadowMesh, actors3d.legMesh, actors3d.torsoMesh, actors3d.headMesh, actors3d.hairMesh, actors3d.glowMesh]) {
+    for (let k = 0; k < m.count * 16; k++) {
+      assert(!Number.isNaN(m.instanceMatrix.array[k]), 'NaN in 3D matrix during 14-day stress!');
+    }
+  }
+  if (d < 13) {
+    nextDay();
+    world3d.buildAll(state.G);
+  }
+}
+
+state.save();
+assert(state.load(scheduleRegs));
+assert.equal(bars().length, 3, 'Expected all 3 bars (incl. bought-out rival) to survive save/load');
+const benchMs = (performance.now() - tBench0).toFixed(1);
+console.log(`[5/5] 14-day 3-bar stress benchmark + save/load OK in ${benchMs}ms (final day=${state.G.day}, history=${state.G.history.length}, achievements=${state.G.achievements.length}, sceneChildren=${fakeScene3D.scene.children.length})`);
 console.log('ALL VERIFICATIONS PASSED!');

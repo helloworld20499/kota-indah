@@ -310,6 +310,11 @@ export class Scene3D {
     this.hemiLight.intensity = hemiInt;
     this.dirLight.color.copy(this._cDir);
     this.dirLight.intensity = dirInt;
+    if (this.bloomPass) {
+      const nightAmt = clamp((h - 17) / 2.4, 0, 1);
+      this.bloomPass.strength = 0.14 + 0.22 * nightAmt;
+      this.bloomPass.threshold = 0.9 - 0.08 * nightAmt;
+    }
   }
 
   step(dtReal, G) {

@@ -424,25 +424,30 @@ export class Actors3D {
 
     // 4. Instanced Additive Glow Pools (1 Draw Call!)
     const night = clamp((G.t / 60 - 17) / 2.4, 0, 1);
+    const rainMul = G.ev && G.ev.rain ? 1.42 : 1.0;
     if (night > 0.05) {
       for (let i = 0; i < POLES.length; i++) {
-        this._pushGlow(state, POLES[i].lx, POLES[i].ly, 4.6, '#ffcf78');
+        this._pushGlow(state, POLES[i].lx, POLES[i].ly, 4.6 * rainMul, '#ffcf78');
       }
-      this._pushGlow(state, GX + 0.5, 27, 5.2, '#8cb8ff');
-      this._pushGlow(state, GX + 0.5, 9, 5.2, '#8cb8ff');
+      this._pushGlow(state, GX + 0.5, 27, 5.2 * rainMul, '#8cb8ff');
+      this._pushGlow(state, GX + 0.5, 9, 5.2 * rainMul, '#8cb8ff');
 
       for (let i = 0; i < G.lots.length; i++) {
         const l = G.lots[i];
         if (!lit(l)) continue;
-        const glowRad = l.kind === 'mine' ? 3.2 + (l.sign || 0) * 1.1 + (skillActive(l, 'happyHour') ? 1.5 : 0) : 3.6;
+        const hh = skillActive(l, 'happyHour') ? 1.5 + 0.5 * Math.sin(now / 180) : 0;
+        const glowRad = (l.kind === 'mine' ? 3.2 + (l.sign || 0) * 1.1 + hh : 3.6) * rainMul;
         for (let d = 0; d < l.doors.length; d++) {
           this._pushGlow(state, l.doors[d].out[0], l.doors[d].out[1], glowRad, l.ac);
+        }
+        if (l.kind === 'mine' && skillActive(l, 'showtime')) {
+          this._pushGlow(state, (l.x0 + l.x1) / 2, (l.y0 + l.y1) / 2, 4.5, '#ff59d6', 0.16);
         }
       }
 
       for (let i = 0; i < G.cars.length; i++) {
         const v = G.cars[i];
-        this._pushGlow(state, v.x + (v.ax ? 0 : v.dir * 1.3), v.y + (v.ax ? v.dir * 1.3 : 0), 2.3, '#fff0b8');
+        this._pushGlow(state, v.x + (v.ax ? 0 : v.dir * 1.3), v.y + (v.ax ? v.dir * 1.3 : 0), 2.3 * rainMul, '#fff0b8');
       }
     }
     if (G.raidUntil && G.t < G.raidUntil) {

@@ -134,6 +134,8 @@ export class World3D {
 
     this.selRing = this._createSelectionRing();
     this.root.add(this.selRing);
+    this.raidGroup = this._createRaidBeacons();
+    this.root.add(this.raidGroup);
     this._camDir = new THREE.Vector3();
     this._tmpCenter = new THREE.Vector3();
   }
@@ -181,6 +183,31 @@ export class World3D {
     mesh.rotation.x = -Math.PI / 2;
     mesh.visible = false;
     return mesh;
+  }
+
+  _createRaidBeacons() {
+    const grp = new THREE.Group();
+    grp.position.set(GX + 1.6, 1.05, 27);
+    grp.visible = false;
+    const coneGeo = new THREE.ConeGeometry(1.1, 3.6, 10, 1, true);
+    coneGeo.translate(0, -1.8, 0);
+    coneGeo.rotateX(Math.PI / 2);
+    ['#ff2e3b', '#2f6bff'].forEach((hex, idx) => {
+      const m = new THREE.Mesh(
+        coneGeo,
+        new THREE.MeshBasicMaterial({
+          color: hex,
+          transparent: true,
+          opacity: 0.34,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        }),
+      );
+      m.rotation.y = idx * Math.PI;
+      grp.add(m);
+    });
+    return grp;
   }
 
   buildAll(G) {
@@ -646,9 +673,15 @@ export class World3D {
     const sofaColor = isMine
       ? l.concept === 'ktv' ? '#7D4E9E' : l.concept === 'club' ? '#2B7A8A' : l.ac
       : BARPAL[l.lay]?.sofa || '#A8403A';
-    const djCone = this._buildInterior(grp, l, els, sofaColor);
+    const interiorFX = this._buildInterior(grp, l, els, sofaColor);
 
-    this.lotMeta[l.i] = { cutWalls, roomWindows, signMat, djCone };
+    this.lotMeta[l.i] = {
+      cutWalls,
+      roomWindows,
+      signMat,
+      djCone: interiorFX.djCone,
+      clubLasers: interiorFX.clubLasers,
+    };
   }
 
   _wallIntervals(span, doorUs) {
@@ -861,9 +894,49 @@ export class World3D {
       addLB(l.L - 1.2, 0.6, l.L - 0.6, 2.0, 4.8, 0, this.getMat('#2F6FB5'));
     }
 
-    // Player bar decorations & DJ booth
+    // Player bar decorations, concept theme props & DJ booth
     let djCone = null;
+    const clubLasers = [];
     if (l.kind === 'mine') {
+      const concept = l.concept || 'bintang';
+      if (concept === 'bintang') {
+        // Golden beer kegs near the bar counter
+        const kegMat = this.getMat('#d4a13e', { rough: 0.35, metal: 0.55 });
+        [[l.L * 0.25, 1.3], [l.L * 0.25 + 0.35, 1.3]].forEach(([u, v]) => {
+          const [kx, ky] = Lw(l, u, v);
+          const keg = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.42, 8), kegMat);
+          keg.position.set(kx, 0.31, ky);
+          grp.add(keg);
+        });
+      } else if (concept === 'ktv') {
+        // Velvet gold-purple VIP entrance columns by the stairs
+        const colMat = this.getMat('#d9a94b', { rough: 0.3, metal: 0.6, emissive: '#9d5cd6', emissiveInt: 0.25 });
+        [[0.2, 2.0], [1.0, 2.0]].forEach(([u, v]) => {
+          const [kx, ky] = Lw(l, u, v);
+          const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 1.6, 8), colMat);
+          pillar.position.set(kx, 0.88, ky);
+          grp.add(pillar);
+        });
+      } else if (concept === 'club') {
+        // Cyan/magenta criss-crossing laser beams
+        const [cx2, cy2] = Lw(l, l.L / 2, l.D / 2);
+        ['#3dd6ff', '#ff49c9'].forEach((col, li) => {
+          const lGeo = new THREE.ConeGeometry(0.45, 2.6, 8, 1, true);
+          const lMat = new THREE.MeshBasicMaterial({
+            color: col,
+            transparent: true,
+            opacity: 0.22,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+          });
+          const laser = new THREE.Mesh(lGeo, lMat);
+          laser.position.set(cx2 + (li ? 0.6 : -0.6), 2.1, cy2);
+          grp.add(laser);
+          clubLasers.push(laser);
+        });
+      }
+
       if ((l.decor || 0) >= 2) {
         [[0.35, l.D - 0.5], [l.L - 0.35, l.D - 0.5]].forEach(([u, v]) => {
           const [px, py] = Lw(l, u, v);
@@ -890,7 +963,7 @@ export class World3D {
         grp.add(djCone);
       }
     }
-    return djCone;
+    return { djCone, clubLasers };
   }
 
   updateDynamic(G, dtReal) {
@@ -914,7 +987,13 @@ export class World3D {
     this.roadMat.roughness = G.ev && G.ev.rain ? 0.22 : 0.85;
     this.roadMat.metalness = G.ev && G.ev.rain ? 0.25 : 0.08;
 
-    // Selection border highlight
+    // Selection border highlight & police raid rotating beacon cones
+    const raidActive = !!(G.raidUntil && G.t < G.raidUntil);
+    this.raidGroup.visible = raidActive;
+    if (raidActive) {
+      this.raidGroup.rotation.y += dtReal * 7.5;
+    }
+
     const sel = G.view != null ? G.lots[G.view] : null;
     if (sel) {
       this.selRing.visible = true;
@@ -975,6 +1054,19 @@ export class World3D {
           meta.djCone.material.opacity = skillActive(l, 'showtime') ? 0.34 : 0.18;
           meta.djCone.rotation.y += dtReal * 2.4;
           meta.djCone.rotation.z = Math.sin(now / 420) * 0.22;
+        }
+      }
+
+      if (meta.clubLasers && meta.clubLasers.length) {
+        const active = barOpen() && !skillActive(l, 'lowProfile');
+        for (let li = 0; li < meta.clubLasers.length; li++) {
+          const lz = meta.clubLasers[li];
+          lz.visible = active;
+          if (active) {
+            lz.rotation.z = Math.sin(now / 520 + li * 1.9) * 0.55;
+            lz.rotation.x = Math.cos(now / 610 + li) * 0.4;
+            lz.material.opacity = skillActive(l, 'showtime') ? 0.32 : 0.18;
+          }
         }
       }
     }

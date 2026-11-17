@@ -58,8 +58,8 @@ const LIVE_TEMPLATES = [
           G.money += 600;
           l.today.drink += 600;
           l.rep = Math.min(5, l.rep + 0.08);
-          G.fx.push({ x: l.x0 + l.L / 2, y: l.y0 + l.D / 2, z: 16, t: '+600k 🍾', life: 6, col: '#E8B959' });
-          confettiFn?.(l.x0 + l.L / 2, l.y0 + l.D / 2, 2.2);
+          G.fx.push({ x: (l.x0 + l.x1) / 2, y: (l.y0 + l.y1) / 2, z: 16, t: '+600k 🍾', life: 6, col: '#E8B959' });
+          confettiFn?.((l.x0 + l.x1) / 2, (l.y0 + l.y1) / 2, 2.2);
           AU.sfx('coin-double');
           toastFn(`${l.name}：豪客爽快开了黄金香槟塔，净赚 +Rp 600k！`);
         } else {
@@ -150,7 +150,7 @@ const LIVE_TEMPLATES = [
           l.rep = Math.min(5, l.rep + 0.08);
           G.regs.push({ id: 'rf' + Date.now(), type: 'tai', bar: l.i, n: 2, pers: 'extro', days: 3 });
           l.today.newRegs++;
-          G.fx.push({ x: l.x0 + l.L / 2, y: l.y0 + l.D / 2, z: 15, t: '+450k 💎', life: 6, col: '#E8B959' });
+          G.fx.push({ x: (l.x0 + l.x1) / 2, y: (l.y0 + l.y1) / 2, z: 15, t: '+450k 💎', life: 6, col: '#E8B959' });
           AU.sfx('coin-double');
           toastFn(`💎 熟客很给面子！额外打赏 ${fm(450)} 并带来新回头客！`);
         } else {

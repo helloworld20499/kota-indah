@@ -1424,6 +1424,7 @@ export function endDay() {
 
   const got = checkGoals();
   checkAchievements();
+  G.liveEvent = null;
   G.modal = true;
   AU.music('closing');
 

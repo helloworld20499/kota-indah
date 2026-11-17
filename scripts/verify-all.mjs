@@ -178,12 +178,45 @@ for (const testCase of [
 }
 console.log(`[3/4] Actors3D instancing, instanceColor & NaN checks OK (sim: ${simSummary.length} days)`);
 
-/* ---------- 4. Verify UI Rendering Functions ---------- */
+/* ---------- 4. Verify UI Rendering & Gameplay Economy/Events ---------- */
+const econ = await import('../src/economy.js');
+const evMod = await import('../src/events.js');
+const { mkHostess, placeH } = state;
+
 G2.view = null;
 ui.renderPanel();
-const firstBar = G2.lots.find((l) => l.kind === 'mine');
-if (firstBar) {
-  G2.view = firstBar.i;
+const myBars = G2.lots.filter((l) => l.kind === 'mine');
+if (myBars.length) {
+  const b = myBars[0];
+  G2.money = 100000;
+  G2.t = 20 * 60;
+  const pay = (n) => { G2.money -= n; return true; };
+  assert(econ.setBarConcept(b, 'ktv', pay, noop, noop));
+  assert.equal(b.concept, 'ktv');
+  assert(econ.buyMenuItem(b, 'champagne', pay, noop));
+  assert(b.menu.champagne);
+  const h0 = b.hostesses[0] || mkHostess(5);
+  if (!b.hostesses.length) { b.hostesses.push(h0); placeH(b, h0); }
+  assert(econ.giveHongbao(b, h0.id, pay, noop));
+  assert(h0.loyalUntil > G2.day);
+  assert(econ.trainHostess(b, h0.id, pay, noop));
+  econ.applyShiftPreset(b, 'rest', noop);
+  const prevB = b.bouncers.length;
+  assert(econ.hireBouncer(b, 0, noop));
+  assert.equal(b.bouncers.length, prevB + 1);
+
+  const rival = G2.lots.find((l) => l.kind === 'rival');
+  assert(rival && econ.rivalIntel(rival).modeCn.length > 0);
+  assert(econ.poachRivalHostess(rival, b, pay, noop));
+
+  assert(evMod.activateSkill(b, 'happyHour', pay, noop));
+  assert(evMod.activateSkill(b, 'lowProfile', pay, noop));
+  b._g.push({ id: 'mockg' });
+  const le = evMod.triggerLiveEvent(noop);
+  assert(le && evMod.resolveLiveEvent('A', noop, noop, noop));
+  b._g.pop();
+
+  G2.view = b.i;
   for (const tab of ['run', 'girls', 'scout', 'mkt']) {
     G2.tab = tab;
     ui.renderPanel();
@@ -195,5 +228,5 @@ ui.showEndDayModal({
   fines: 0, fee: 0, net: 160, nh: 0, rf: 0, tu: 0, nl: 0, nr: 1, sto: 0, bnc: 0,
   barSummaries: [], extra: [], got: [], sunday: false, bust: false,
 });
-console.log('[4/4] UI renderPanel / modals verified with 0 errors');
+console.log('[4/4] UI, economy & live event systems verified with 0 errors');
 console.log('ALL VERIFICATIONS PASSED!');

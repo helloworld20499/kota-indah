@@ -6,13 +6,20 @@ import {
   G, allH, bars, freeSpot, mkHostess, newGame, placeH, placeM,
 } from './state.js';
 import {
+  applyShiftPreset, buyMenuItem, fireBouncer, giveHongbao, hireBouncer,
+  poachRivalHostess, setBarConcept, trainHostess, transferHostess,
+} from './economy.js';
+import {
+  activateSkill, resolveLiveEvent, tickLiveEvent, triggerLiveEvent,
+} from './events.js';
+import {
   barOpen, checkAchievements, checkGoals, initSim, nextDay, scheduleRegs, setSimHooks,
-  simHeadlessDays, skipToOpen, trafMul, update,
+  simHeadlessDays, skipToOpen, update,
 } from './sim.js';
 import { Scene3D } from './scene3d.js';
 import { World3D } from './world3d.js';
 import { Actors3D } from './actors3d.js';
-import { live, priceHint, renderPanel, showBriefModal, showEndDayModal, toast } from './ui.js';
+import { live, priceHint, renderLiveEvent, renderPanel, showBriefModal, showEndDayModal, toast } from './ui.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -85,6 +92,7 @@ export function act(a, v) {
     };
     e.roomsUsed = 0;
     e.dj = false;
+    e.trainedToday = false;
     e.skills = {
       happyHour: { activeUntil: 0, cdUntil: 0 },
       showtime: { activeUntil: 0, cdUntil: 0 },
@@ -98,6 +106,24 @@ export function act(a, v) {
     checkGoals();
     checkAchievements();
     return;
+  } else if (a === 'concept' && l) {
+    setBarConcept(l, v, pay, toast, (lot) => world3d?.rebuildLot(lot, G));
+  } else if (a === 'buyMenu' && l) {
+    buyMenuItem(l, v, pay, toast);
+  } else if (a === 'hongbao' && l) {
+    giveHongbao(l, v, pay, toast);
+  } else if (a === 'trainH' && l) {
+    trainHostess(l, v, pay, toast);
+  } else if (a === 'preset' && l) {
+    applyShiftPreset(l, v, toast);
+  } else if (a === 'hireB' && l) {
+    hireBouncer(l, +v, toast);
+  } else if (a === 'fireB' && l) {
+    fireBouncer(l, v);
+  } else if (a === 'poach') {
+    const rival = G.lots[+v];
+    const targetBar = bars()[0];
+    if (rival) poachRivalHostess(rival, targetBar, pay, toast);
   } else if (a === 'flyers') {
     if (G.flyers || !pay(300)) return;
     G.flyers = true;
@@ -249,43 +275,30 @@ export function act(a, v) {
       placeH(l, h);
     }
   } else if (a === 'allOn' && l) {
-    l.hostesses.forEach((h) => {
-      if (!h.on && !h.sick) {
-        h.on = true;
-        h.hidden = false;
-        if (barOpen()) h.worked = true;
-        placeH(l, h);
-      }
-    });
+    applyShiftPreset(l, 'rush', toast);
   } else if (a === 'auto' && l) {
-    const want = Math.ceil(l.hostesses.length * Math.min(1, trafMul() / 1.3));
-    const sorted = l.hostesses.slice().sort((a1, b1) => b1.en - a1.en);
-    sorted.forEach((h, i) => {
-      const on = i < want && h.en >= 30 && !h.sick;
-      if (on === h.on) return;
-      if (!on && h.state !== 'idle') return;
-      h.on = on;
-      if (on) {
-        h.hidden = false;
-        if (barOpen()) h.worked = true;
-        placeH(l, h);
-      } else {
-        freeSpot(l, h);
-        h.hidden = true;
-      }
-    });
-    toast('按今晚客流排了 ' + l.hostesses.filter((h) => onDuty(h)).length + ' 人上班');
+    applyShiftPreset(l, 'smart', toast);
   }
   renderPanel();
 }
 
 function initUIEvents() {
-  const QUIET = ['tog', 'hireH', 'fireH', 'hireS', 'hireM', 'up', 'rent'];
+  const QUIET = ['tog', 'hireH', 'fireH', 'hireS', 'hireM', 'hireB', 'up', 'rent', 'hongbao', 'trainH'];
   $('panel')?.addEventListener('click', (e) => {
     const b = e.target.closest('[data-a]');
     if (b) {
       if (!QUIET.includes(b.dataset.a)) AU.sfx('click-soft-tap');
       act(b.dataset.a, b.dataset.v);
+    }
+  });
+  $('panel')?.addEventListener('change', (e) => {
+    const sel = e.target.closest('[data-xfer]');
+    if (sel && sel.value !== '') {
+      const l = G.view != null ? G.lots[G.view] : null;
+      if (l && l.kind === 'mine') {
+        transferHostess(l, sel.dataset.xfer, +sel.value, toast);
+        renderPanel();
+      }
     }
   });
   $('panel')?.addEventListener('input', (e) => {
@@ -303,6 +316,28 @@ function initUIEvents() {
       live();
     }
   });
+
+  $('skillDock')?.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-skill]');
+    const l = G.view != null ? G.lots[G.view] : null;
+    if (b && l && l.kind === 'mine') {
+      activateSkill(l, b.dataset.skill, pay, toast);
+      renderPanel();
+    }
+  });
+
+  $('liveEventCard')?.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-ev]');
+    if (b) {
+      resolveLiveEvent(
+        b.dataset.ev,
+        toast,
+        (x, y, z) => actors3d?.spawnConfettiBurst(x, y, z),
+        () => renderPanel(),
+      );
+    }
+  });
+
   $('modal')?.addEventListener('click', (e) => {
     const b = e.target.closest('[data-a]');
     if (b) {
@@ -336,7 +371,6 @@ function initUIEvents() {
     e.currentTarget.classList.toggle('on', scene3d.cutawayEnabled);
   });
 
-  // Pointer tap vs drag disambiguation on 3D canvas
   const dom = scene3d.renderer.domElement;
   let downX = 0;
   let downY = 0;
@@ -349,7 +383,7 @@ function initUIEvents() {
   dom.addEventListener('pointerup', (ev) => {
     if (G.modal) return;
     const dist = Math.hypot(ev.clientX - downX, ev.clientY - downY);
-    if (dist > 8 || performance.now() - downTime > 450) return; // was drag/pan/rotate
+    if (dist > 8 || performance.now() - downTime > 450) return;
     const idx = scene3d.pickLotAtClient(ev.clientX, ev.clientY, G.lots);
     if (idx < 0) {
       if (G.view != null) {
@@ -386,7 +420,7 @@ function boot() {
     onBrief: showBriefModal,
     onPanel: renderPanel,
     onChampagne: (l, p) => actors3d?.spawnConfettiBurst(p.x, p.y, 2.2),
-    onLiveEvent: () => {},
+    onLiveEvent: () => triggerLiveEvent(renderLiveEvent),
     onGoal: () => {},
     onAchievement: () => {},
   });
@@ -420,11 +454,12 @@ function boot() {
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
     update(dt);
+    tickLiveEvent(toast, (x, y, z) => actors3d?.spawnConfettiBurst(x, y, z), renderPanel);
     scene3d.step(dt, G);
     world3d.updateDynamic(G, dt);
     actors3d.update(G, dt, (idx) => focusLot(idx));
     scene3d.render();
-    if (now - lastLive > 280) {
+    if (now - lastLive > 250) {
       lastLive = now;
       live();
     }

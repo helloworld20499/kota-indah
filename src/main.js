@@ -19,7 +19,7 @@ import {
 import { Scene3D } from './scene3d.js';
 import { World3D } from './world3d.js';
 import { Actors3D } from './actors3d.js';
-import { live, priceHint, renderLiveEvent, renderPanel, showBriefModal, showEndDayModal, toast } from './ui.js';
+import { live, priceHint, renderLiveEvent, renderPanel, showAchievementsModal, showBriefModal, showEndDayModal, toast } from './ui.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -235,6 +235,10 @@ export function act(a, v) {
       focusLot(bars()[0].i);
       return;
     }
+  } else if (a === 'closeModal') {
+    $('modal').classList.remove('on');
+    G.modal = false;
+    return;
   } else if (a === 'raiseY' || a === 'raiseN') {
     const h = allH().find((x) => x.id === v);
     if (h && h.raiseAsk) {
@@ -348,6 +352,112 @@ function initUIEvents() {
   $('auM')?.addEventListener('click', () => { AU.setM(!AU.m); audioUI(); });
   $('auS')?.addEventListener('click', () => { AU.setS(!AU.s); if (AU.s) AU.sfx('click-soft-tap'); audioUI(); });
   audioUI();
+
+  $('barPills')?.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-jump]');
+    if (!b) return;
+    AU.sfx('click-soft-tap');
+    const idx = +b.dataset.jump;
+    if (idx < 0) act('back');
+    else focusLot(idx);
+  });
+
+  $('btnAch')?.addEventListener('click', () => {
+    AU.sfx('modal-open-rise');
+    showAchievementsModal();
+  });
+
+  const QMODES = ['auto', 'high', 'medium', 'low'];
+  const QLABELS = { auto: '画质:Auto', high: '画质:高', medium: '画质:中', low: '画质:省电' };
+  $('btnQual')?.addEventListener('click', (e) => {
+    AU.sfx('click-soft-tap');
+    const nextIdx = (QMODES.indexOf(scene3d.qualityMode) + 1) % QMODES.length;
+    const mode = QMODES[nextIdx];
+    scene3d.setQualityMode(mode);
+    e.currentTarget.textContent = QLABELS[mode];
+    toast(`3D 画质已切至 ${QLABELS[mode].slice(3)}（当前渲染：${scene3d.effectiveQuality}）`);
+  });
+
+  // Mobile 3-snap-point draggable bottom sheet
+  const panelWrap = $('panelWrap');
+  const grabber = $('sheetGrabber');
+  let curSnap = 'half';
+  function setSnap(snap) {
+    curSnap = snap;
+    if (!panelWrap) return;
+    panelWrap.style.height = '';
+    panelWrap.classList.remove('snap-mini', 'snap-half', 'snap-full');
+    panelWrap.classList.add('snap-' + snap);
+    grabber?.querySelectorAll('[data-snap]').forEach((b) => b.classList.toggle('on', b.dataset.snap === snap));
+  }
+  setSnap('half');
+
+  grabber?.addEventListener('click', (e) => {
+    const sb = e.target.closest('[data-snap]');
+    if (sb) {
+      AU.sfx('click-soft-tap');
+      setSnap(sb.dataset.snap);
+    }
+  });
+
+  if (grabber && panelWrap) {
+    let dragStartY = 0;
+    let startH = 0;
+    let dragging = false;
+    grabber.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('[data-snap]')) return;
+      dragging = true;
+      dragStartY = e.clientY;
+      startH = panelWrap.getBoundingClientRect().height;
+      panelWrap.classList.add('dragging');
+      grabber.setPointerCapture?.(e.pointerId);
+    });
+    grabber.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      const vh = window.innerHeight || 800;
+      const nextH = Math.max(78, Math.min(vh * 0.86, startH + (dragStartY - e.clientY)));
+      panelWrap.style.height = nextH + 'px';
+    });
+    const endDrag = () => {
+      if (!dragging) return;
+      dragging = false;
+      panelWrap.classList.remove('dragging');
+      const vh = window.innerHeight || 800;
+      const ratio = panelWrap.getBoundingClientRect().height / vh;
+      setSnap(ratio < 0.25 ? 'mini' : ratio > 0.66 ? 'full' : 'half');
+    };
+    grabber.addEventListener('pointerup', endDrag);
+    grabber.addEventListener('pointercancel', endDrag);
+  }
+
+  $('mobTabs')?.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-mtab]');
+    if (!b) return;
+    AU.sfx('click-soft-tap');
+    const tab = b.dataset.mtab;
+    const bs = bars();
+    if (tab === 'overview') {
+      G.view = null;
+      scene3d?.overview();
+      renderPanel();
+    } else if (tab === 'street') {
+      const rival = G.lots.find((x) => x.kind === 'rival');
+      G.view = rival ? rival.i : null;
+      if (G.view != null) scene3d?.focusLot(G.lots[G.view]);
+      renderPanel();
+    } else {
+      if (!bs.length) {
+        G.view = null;
+        renderPanel();
+        toast('请先在全景或 3D 地图上租下第一家铺位开店！');
+      } else {
+        const targetBar = G.view != null && G.lots[G.view]?.kind === 'mine' ? G.lots[G.view] : bs[0];
+        G.tab = tab === 'staff' ? 'mkt' : tab;
+        focusLot(targetBar.i);
+      }
+    }
+    if (curSnap === 'mini') setSnap('half');
+  });
 
   $('speed')?.addEventListener('click', (e) => {
     const b = e.target.closest('button');

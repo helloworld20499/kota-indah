@@ -93,11 +93,12 @@ function makeMockElement(id = '', tag = 'div') {
     getContext() { return mockCtx2D(); },
     addEventListener: noop,
     querySelector: () => makeMockElement(),
+    querySelectorAll: () => [],
     closest: () => null,
   };
 }
 
-const domIds = ['panel', 'panelWrap', 'sheet', 'modal', 'toast', 'hDay', 'hEv', 'hMoney', 'hMoneyChip', 'tdot', 'speed', 'zall', 'ttl', 'subttl', 'hClock', 'auM', 'auS', 'btnSkipOpen', 'world-hud', 'barPills', 'skillDock', 'liveEventCard', 'btnQual', 'btnAch'];
+const domIds = ['panel', 'panelWrap', 'sheet', 'modal', 'toast', 'hDay', 'hEv', 'hMoney', 'hMoneyChip', 'tdot', 'speed', 'zall', 'ttl', 'subttl', 'hClock', 'auM', 'auS', 'btnSkipOpen', 'world-hud', 'barPills', 'skillDock', 'liveEventCard', 'btnQual', 'btnAch', 'achCnt', 'mobTabs', 'sheetGrabber'];
 const elements = new Map(domIds.map((id) => [id, makeMockElement(id)]));
 
 globalThis.document = {
@@ -223,6 +224,7 @@ if (myBars.length) {
   }
 }
 ui.showBriefModal(['测试简报']);
+ui.showAchievementsModal();
 ui.showEndDayModal({
   hf: 1200, dr: 800, cogs: 200, hw: 500, hc: 540, sw: 200, rent: 400,
   fines: 0, fee: 0, net: 160, nh: 0, rf: 0, tu: 0, nl: 0, nr: 1, sto: 0, bnc: 0,

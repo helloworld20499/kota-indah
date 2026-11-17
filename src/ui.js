@@ -1,5 +1,5 @@
 import {
-  BODY, COGS, CONCEPTS, CT, FEE, GOALS, MAXH, PERS, ROOMS, SKILLS, SKINS, SPECIAL_MENU,
+  ACHIEVEMENTS, BODY, COGS, CONCEPTS, CT, FEE, GOALS, MAXH, PERS, ROOMS, SKILLS, SKINS, SPECIAL_MENU,
   T0, T_END, T_OPEN, TIER, TRAITS, UPG, WD, WMUL, activeH, clamp, esc, fm, moodTx, onDuty, tierOf, wday, where,
 } from './config.js';
 import { G, bars, cap } from './state.js';
@@ -26,7 +26,8 @@ export function avatar(o, sz = 42) {
   const t = o.pop != null ? tierOf(o) : 0;
   const ring = o.ring || (t === 2 ? '#e8b959' : t === 1 ? '#ff5c54' : 'rgba(255,255,255,0.22)');
   const hs = o.hs != null ? o.hs : (parseInt(String(o.id || '0').slice(-3), 36) || 0) % 4;
-  const capPath = `<path d="M12.5 17 Q13.5 7.5 21 7.5 Q28.5 7.5 29.5 17 Q26 11.5 21 12.2 Q15.5 11.5 12.5 17Z" fill="${hr}"/>`;
+  const crown = t === 2 ? `<path d="M16 7 L18 3.5 L21 6 L24 3.5 L26 7Z" fill="#e8b959"/>` : '';
+  const capPath = `<path d="M12.5 17 Q13.5 7.5 21 7.5 Q28.5 7.5 29.5 17 Q26 11.5 21 12.2 Q15.5 11.5 12.5 17Z" fill="${hr}"/>${crown}`;
   let back = '';
   let front = capPath;
   let extra = '';
@@ -342,9 +343,60 @@ export function renderLiveEvent() {
     <button class="le-opt" data-ev="B"><b>B. ${ev.optB.label}</b><small>${ev.optB.hint}</small></button>`;
 }
 
+function renderBarPills() {
+  const wrap = $('barPills');
+  if (!wrap || !G) return;
+  const bs = bars();
+  if (!bs.length) {
+    wrap.innerHTML = '';
+    return;
+  }
+  const pills = [
+    `<button class="bar-pill${G.view == null ? ' on' : ''}" data-jump="-1">全景</button>`,
+    ...bs.map((b) => `<button class="bar-pill${G.view === b.i ? ' on' : ''}" data-jump="${b.i}">★ ${esc(b.name)}</button>`),
+  ];
+  const html = pills.join('');
+  if (wrap._last !== html) {
+    wrap._last = html;
+    wrap.innerHTML = html;
+  }
+}
+
+function updateMobileTabs() {
+  const nav = $('mobTabs');
+  if (!nav || !G) return;
+  const l = G.view != null ? G.lots[G.view] : null;
+  let active = 'overview';
+  if (l && l.kind === 'mine') {
+    active = G.tab === 'girls' ? 'girls' : G.tab === 'scout' || G.tab === 'mkt' ? 'staff' : 'run';
+  } else if (l) {
+    active = 'street';
+  }
+  nav.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.mtab === active));
+}
+
+export function showAchievementsModal() {
+  const got = G?.achievements || [];
+  $('sheet').innerHTML = `<h2>夜街传奇成就（${got.length}/${ACHIEVEMENTS.length}）</h2>
+    <p class="hand">解锁成就可获得永久街头经营增益。</p>
+    ${ACHIEVEMENTS.map((a) => {
+      const ok = got.includes(a.id);
+      return `<div class="card" style="opacity:${ok ? 1 : 0.55};border-color:${ok ? 'var(--gold)' : 'var(--line-soft)'}">
+        <h5><span>${a.icon} ${a.cn}</span><em style="color:${ok ? 'var(--teal)' : 'var(--mute)'}">${ok ? '已解锁' : '未达成'}</em></h5>
+        <p>${a.desc}</p>
+        <p style="color:var(--gold);font-size:11.5px;margin-top:3px">增益：${a.bonus}</p>
+      </div>`;
+    }).join('')}
+    <br><button class="btn pri" data-a="closeModal">关闭</button>`;
+  $('modal').classList.add('on');
+}
+
 export function live() {
   if (!G) return;
   if ($('hDay')) $('hDay').textContent = `第 ${G.day} 天 · ${WD[wday(G.day)]}`;
+  if ($('achCnt')) $('achCnt').textContent = String((G.achievements || []).length);
+  renderBarPills();
+  updateMobileTabs();
   const evs = evList();
   if ($('hEv')) {
     $('hEv').style.display = evs.length ? '' : 'none';

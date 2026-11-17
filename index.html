@@ -24,6 +24,7 @@
     <svg width="28" height="28" viewBox="0 0 30 30" fill="none" stroke="#E8B959" stroke-width="1.7" stroke-linecap="round"><path d="M8 5h14l-2 9a5 5 0 0 1-10 0z"/><path d="M15 19v6M10 25h10"/></svg>
     <div><b>Kota Indah 夜街</b><i>Jl. Komp. Ruko Kota Indah · 3D Diorama</i></div>
   </div>
+  <div class="bar-pills" id="barPills"></div>
   <div class="chip"><span id="hDay"></span></div>
   <div class="chip ev" id="hEv" style="display:none"></div>
   <div class="chip" id="hMoneyChip"><small>现金</small><span id="hMoney"></span></div>
@@ -32,14 +33,30 @@
     <button data-s="0" aria-label="暂停">❚❚</button><button data-s="1">1×</button><button data-s="2">2×</button><button data-s="4">4×</button><button data-s="8">8×</button>
   </div>
   <div class="aud">
+    <button id="btnAch" class="pill-ico" title="夜街成就墙">🏆 <span id="achCnt">0</span></button>
+    <button id="btnQual" class="pill-ico" title="切换 3D 画质 (Auto/高/中/省电)">画质:Auto</button>
     <button id="auM" aria-label="音乐"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 12V3l7-1.5V10.5"/><circle cx="4.3" cy="12" r="1.8"/><circle cx="11.3" cy="10.5" r="1.8"/><path class="x" d="M2 2l12 12"/></svg></button>
     <button id="auS" aria-label="音效"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6h2.5L8 3v10L4.5 10H2z"/><path d="M10.5 5.5a3.5 3.5 0 0 1 0 5M12.5 3.5a6.3 6.3 0 0 1 0 9"/><path class="x" d="M2 2l12 12"/></svg></button>
   </div>
 </header>
 
 <div class="app">
-  <aside class="side" id="panelWrap">
-    <div class="sheet-grabber" id="sheetGrabber"><div class="grab-bar"></div></div>
+  <aside class="side snap-half" id="panelWrap">
+    <div class="sheet-grabber" id="sheetGrabber">
+      <div class="grab-bar"></div>
+      <div class="grab-acts">
+        <button data-snap="mini">收起</button>
+        <button data-snap="half">半屏</button>
+        <button data-snap="full">展开</button>
+      </div>
+    </div>
+    <nav class="mob-tabs" id="mobTabs" aria-label="快捷导航">
+      <button data-mtab="overview">🗺️ 总览</button>
+      <button data-mtab="run">🍸 经营</button>
+      <button data-mtab="girls">💃 公关</button>
+      <button data-mtab="staff">🛡️ 员工</button>
+      <button data-mtab="street">🏙️ 街区</button>
+    </nav>
     <div id="panel"></div>
   </aside>
 

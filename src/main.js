@@ -1,0 +1,436 @@
+import {
+  ACCENTS, BARNAMES, MAXH, UPG, esc, fm, onDuty,
+} from './config.js';
+import { AU, audioUI, dayTrack } from './audio.js';
+import {
+  G, allH, bars, freeSpot, mkHostess, newGame, placeH, placeM,
+} from './state.js';
+import {
+  barOpen, checkAchievements, checkGoals, initSim, nextDay, scheduleRegs, setSimHooks,
+  simHeadlessDays, skipToOpen, trafMul, update,
+} from './sim.js';
+import { Scene3D } from './scene3d.js';
+import { World3D } from './world3d.js';
+import { Actors3D } from './actors3d.js';
+import { live, priceHint, renderPanel, showBriefModal, showEndDayModal, toast } from './ui.js';
+
+const $ = (id) => document.getElementById(id);
+
+let scene3d = null;
+let world3d = null;
+let actors3d = null;
+
+function pay(n) {
+  if (G.money < n) {
+    AU.sfx('error-soft-thud');
+    toast('现金不够，还差 ' + fm(n - G.money));
+    return false;
+  }
+  G.money -= n;
+  G.spent += n;
+  return true;
+}
+
+export function focusLot(i) {
+  G.view = i;
+  if (scene3d && G.lots[i]) scene3d.focusLot(G.lots[i]);
+  renderPanel();
+}
+
+export function act(a, v) {
+  const l = G.view != null && G.lots[G.view]?.kind === 'mine' ? G.lots[G.view] : null;
+  if (a === 'back') {
+    G.view = null;
+    if (scene3d) scene3d.overview();
+  } else if (a === 'enter') {
+    focusLot(+v);
+    return;
+  } else if (a === 'tab') {
+    G.tab = v;
+  } else if (a === 'rent') {
+    const e = G.lots[+v];
+    if (!e || e.kind !== 'empty' || !pay(e.cost)) return;
+    const n = bars().length;
+    Object.assign(e, {
+      kind: 'mine',
+      name: BARNAMES[n % BARNAMES.length],
+      accent: ACCENTS[n % 4],
+      concept: 'bintang',
+      menu: {},
+      price: 35,
+      decor: 0,
+      seats: 0,
+      rooms: 0,
+      sign: 0,
+      rep: 3,
+      fl: '#D8CDB8',
+      hostesses: [],
+      scouts: [],
+      mkts: [],
+      bouncers: [],
+      req: { body: 'any', pers: 'any', looks: 0, att: 0 },
+      cands: [0, 1, 2, 3, 4].map(() => mkHostess(4.6)),
+    });
+    AU.sfx('level-up');
+    e.ac = e.accent;
+    e._seats = null;
+    e._els = null;
+    e._spots = null;
+    e._spotT = {};
+    e._sofaH = {};
+    e.today = {
+      stolen: 0, bounced: 0, drink: 0, hfee: 0, cogs: 0, guests: 0, turned: 0,
+      nohost: 0, roomfull: 0, nolike: 0, hours: 0, newRegs: 0, champagnes: 0, fine: 0,
+      by: { local: 0, tai: 0, cn: 0 },
+    };
+    e.roomsUsed = 0;
+    e.dj = false;
+    e.skills = {
+      happyHour: { activeUntil: 0, cdUntil: 0 },
+      showtime: { activeUntil: 0, cdUntil: 0 },
+      lowProfile: { activeUntil: 0, cdUntil: 0 },
+    };
+    G.mine[e.i] = e;
+    G.tab = 'girls';
+    world3d?.rebuildLot(e, G);
+    focusLot(e.i);
+    toast('开张了！先签几个公关，再点击「跳至 17:00 开门」！');
+    checkGoals();
+    checkAchievements();
+    return;
+  } else if (a === 'flyers') {
+    if (G.flyers || !pay(300)) return;
+    G.flyers = true;
+    toast('传单发出去了，今晚人流 +40%');
+  } else if (a === 'dj' && l) {
+    if (l.dj || !pay(600)) return;
+    l.dj = true;
+    world3d?.rebuildLot(l, G);
+    toast('DJ 到位：今晚人更多，更多人想去包厢');
+  } else if (a === 'hireH' && l) {
+    const c = l.cands[+v];
+    if (!c) return;
+    if (l.hostesses.length >= MAXH) {
+      toast('一家店最多 ' + MAXH + ' 个公关');
+      return;
+    }
+    AU.sfx('pop-bubble');
+    l.cands.splice(+v, 1);
+    c.state = 'idle';
+    c.todayH = 0;
+    c.hidden = false;
+    c.on = true;
+    if (barOpen()) c.worked = true;
+    l.hostesses.push(c);
+    placeH(l, c);
+    checkGoals();
+  } else if (a === 'fireH' && l) {
+    const h = l.hostesses.find((x) => x.id === v);
+    if (!h) return;
+    if (h.state !== 'idle') {
+      toast(h.name + ' 正在陪客，等她回来再说');
+      return;
+    }
+    freeSpot(l, h);
+    l.hostesses = l.hostesses.filter((x) => x !== h);
+    AU.sfx('trash-crumple');
+  } else if (a === 'hireS' && l) {
+    const s = G.mk.scouts[+v];
+    if (!s) return;
+    if (l.scouts.length >= 2) {
+      toast('一家店最多 2 个星探');
+      return;
+    }
+    AU.sfx('pop-bubble');
+    G.mk.scouts.splice(+v, 1);
+    l.scouts.push(s);
+    toast(s.name + ' 明天开始带人来');
+  } else if (a === 'fireS' && l) {
+    l.scouts = l.scouts.filter((s) => s.id !== v);
+  } else if (a === 'hireM' && l) {
+    const m = G.mk.mkts[+v];
+    if (!m) return;
+    if (l.mkts.length >= 3) {
+      toast('一家店最多 3 个营销');
+      return;
+    }
+    AU.sfx('pop-bubble');
+    G.mk.mkts.splice(+v, 1);
+    l.mkts.push(m);
+    placeM(l, m);
+  } else if (a === 'fireM' && l) {
+    l.mkts = l.mkts.filter((m) => m.id !== v);
+  } else if (a === 'req' && l) {
+    const [k, val] = v.split(':');
+    l.req[k] = k === 'looks' || k === 'att' ? +val : val;
+  } else if (a === 'up' && l) {
+    const u = UPG[v];
+    const lv = l[v];
+    if (lv >= 3) return;
+    if (v === 'seats' && l._g.length) {
+      toast('店里还有客人，等空了再动桌椅');
+      return;
+    }
+    if (!pay(u.cost[lv])) return;
+    l[v]++;
+    l._seats = null;
+    l._els = null;
+    if (v === 'seats') {
+      l._spots = null;
+      l._spotT = {};
+      l._sofaH = {};
+      l.hostesses.forEach((h) => {
+        if (h.state === 'idle' && onDuty(h)) placeH(l, h);
+      });
+    }
+    world3d?.rebuildLot(l, G);
+    AU.sfx('confirm-unlock');
+    toast(u.cn + ' 升到 Lv.' + l[v]);
+  } else if (a === 'restart') {
+    $('modal').classList.remove('on');
+    try {
+      localStorage.removeItem('kotaindah_v2');
+      localStorage.removeItem('kotaindah7');
+    } catch (_) {}
+    newGame(scheduleRegs);
+    world3d?.buildAll(G);
+    scene3d?.overview();
+  } else if (a === 'ask-restart') {
+    G._ask = true;
+  } else if (a === 'next') {
+    nextDay();
+    world3d?.buildAll(G);
+    return;
+  } else if (a === 'start' || a === 'schedule') {
+    $('modal').classList.remove('on');
+    G.modal = false;
+    if (a === 'schedule' && bars().length) {
+      G.tab = 'girls';
+      focusLot(bars()[0].i);
+      return;
+    }
+  } else if (a === 'raiseY' || a === 'raiseN') {
+    const h = allH().find((x) => x.id === v);
+    if (h && h.raiseAsk) {
+      if (a === 'raiseY') {
+        h.wage = h.raiseAsk;
+        h.mood = Math.min(100, h.mood + 20);
+      } else {
+        h.mood = Math.max(0, h.mood - 25);
+        h.refused = 3;
+      }
+      h.raiseAsk = null;
+    }
+    if (G.modal) {
+      const b = $('sheet').querySelector(`[data-v="${v}"]`);
+      if (b) b.closest('.kv').innerHTML = `<span>${esc(h.name)}：${a === 'raiseY' ? '已加薪' : '已拒绝'}</span>`;
+    }
+  } else if (a === 'tog' && l) {
+    const h = l.hostesses.find((x) => x.id === v);
+    if (!h) return;
+    if (h.sick) {
+      toast(h.name + ' 今晚病假');
+      return;
+    }
+    if (h.on) {
+      if (h.state !== 'idle') {
+        toast(h.name + ' 正在陪客');
+        return;
+      }
+      AU.sfx('toggle-switch-off');
+      h.on = false;
+      freeSpot(l, h);
+      h.hidden = true;
+    } else {
+      AU.sfx('toggle-switch-on');
+      h.on = true;
+      h.hidden = false;
+      if (barOpen()) h.worked = true;
+      placeH(l, h);
+    }
+  } else if (a === 'allOn' && l) {
+    l.hostesses.forEach((h) => {
+      if (!h.on && !h.sick) {
+        h.on = true;
+        h.hidden = false;
+        if (barOpen()) h.worked = true;
+        placeH(l, h);
+      }
+    });
+  } else if (a === 'auto' && l) {
+    const want = Math.ceil(l.hostesses.length * Math.min(1, trafMul() / 1.3));
+    const sorted = l.hostesses.slice().sort((a1, b1) => b1.en - a1.en);
+    sorted.forEach((h, i) => {
+      const on = i < want && h.en >= 30 && !h.sick;
+      if (on === h.on) return;
+      if (!on && h.state !== 'idle') return;
+      h.on = on;
+      if (on) {
+        h.hidden = false;
+        if (barOpen()) h.worked = true;
+        placeH(l, h);
+      } else {
+        freeSpot(l, h);
+        h.hidden = true;
+      }
+    });
+    toast('按今晚客流排了 ' + l.hostesses.filter((h) => onDuty(h)).length + ' 人上班');
+  }
+  renderPanel();
+}
+
+function initUIEvents() {
+  const QUIET = ['tog', 'hireH', 'fireH', 'hireS', 'hireM', 'up', 'rent'];
+  $('panel')?.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-a]');
+    if (b) {
+      if (!QUIET.includes(b.dataset.a)) AU.sfx('click-soft-tap');
+      act(b.dataset.a, b.dataset.v);
+    }
+  });
+  $('panel')?.addEventListener('input', (e) => {
+    const l = G.view != null ? G.lots[G.view] : null;
+    if (!l || l.kind !== 'mine') return;
+    if (e.target.id === 'pr') {
+      l.price = +e.target.value;
+      if ($('pv')) $('pv').textContent = fm(l.price);
+      if ($('ph')) $('ph').textContent = priceHint(l);
+      live();
+    }
+    if (e.target.id === 'nm') {
+      l.name = e.target.value.trim() || 'Bar';
+      world3d?.rebuildLot(l, G);
+      live();
+    }
+  });
+  $('modal')?.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-a]');
+    if (b) {
+      AU.sfx('click-soft-tap');
+      act(b.dataset.a, b.dataset.v);
+    }
+  });
+  $('auM')?.addEventListener('click', () => { AU.setM(!AU.m); audioUI(); });
+  $('auS')?.addEventListener('click', () => { AU.setS(!AU.s); if (AU.s) AU.sfx('click-soft-tap'); audioUI(); });
+  audioUI();
+
+  $('speed')?.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (b) {
+      AU.sfx('click-soft-tap');
+      G.speed = +b.dataset.s;
+      live();
+    }
+  });
+  $('btnSkipOpen')?.addEventListener('click', () => {
+    if (skipToOpen()) {
+      toast('傍晚 5 点，准时开灯开门迎客！');
+      live();
+    }
+  });
+  $('zall')?.addEventListener('click', () => act('back'));
+  $('btnRot')?.addEventListener('click', () => { AU.sfx('click-soft-tap'); scene3d?.rotate90(); });
+  $('btnCut')?.addEventListener('click', (e) => {
+    AU.sfx('click-soft-tap');
+    scene3d.cutawayEnabled = !scene3d.cutawayEnabled;
+    e.currentTarget.classList.toggle('on', scene3d.cutawayEnabled);
+  });
+
+  // Pointer tap vs drag disambiguation on 3D canvas
+  const dom = scene3d.renderer.domElement;
+  let downX = 0;
+  let downY = 0;
+  let downTime = 0;
+  dom.addEventListener('pointerdown', (ev) => {
+    downX = ev.clientX;
+    downY = ev.clientY;
+    downTime = performance.now();
+  });
+  dom.addEventListener('pointerup', (ev) => {
+    if (G.modal) return;
+    const dist = Math.hypot(ev.clientX - downX, ev.clientY - downY);
+    if (dist > 8 || performance.now() - downTime > 450) return; // was drag/pan/rotate
+    const idx = scene3d.pickLotAtClient(ev.clientX, ev.clientY, G.lots);
+    if (idx < 0) {
+      if (G.view != null) {
+        G.view = null;
+        scene3d.overview();
+        renderPanel();
+      }
+      return;
+    }
+    focusLot(idx);
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.code === 'Space') { e.preventDefault(); G.speed = G.speed ? 0 : 1; live(); }
+    else if (e.key === '1') { G.speed = 1; live(); }
+    else if (e.key === '2') { G.speed = 2; live(); }
+    else if (e.key === '3') { G.speed = 4; live(); }
+    else if (e.key === '4') { G.speed = 8; live(); }
+    else if (e.key === 'Escape' && G.view != null) act('back');
+    else if (e.key === 'r' || e.key === 'R') scene3d?.rotate90();
+    else if (e.key === 'q' || e.key === 'Q') scene3d?.rotateBy(-Math.PI / 6);
+    else if (e.key === 'e' || e.key === 'E') scene3d?.rotateBy(Math.PI / 6);
+  });
+
+  window.addEventListener('resize', () => scene3d?.resize());
+}
+
+function boot() {
+  initSim();
+  setSimHooks({
+    toast,
+    onEndDay: showEndDayModal,
+    onBrief: showBriefModal,
+    onPanel: renderPanel,
+    onChampagne: (l, p) => actors3d?.spawnConfettiBurst(p.x, p.y, 2.2),
+    onLiveEvent: () => {},
+    onGoal: () => {},
+    onAchievement: () => {},
+  });
+
+  const vp = $('viewport3d');
+  scene3d = new Scene3D(vp);
+  world3d = new World3D(scene3d);
+  actors3d = new Actors3D(scene3d, $('world-hud'));
+  world3d.buildAll(G);
+
+  initUIEvents();
+  renderPanel();
+  AU.music(dayTrack(G));
+
+  window.__G = () => G;
+  window.__AU = AU;
+  window.__act = act;
+  window.__simDays = simHeadlessDays;
+  window.__perf = () => ({
+    fps: Math.round(scene3d.fpsAvg),
+    quality: scene3d.effectiveQuality,
+    drawCalls: scene3d.getDrawCalls(),
+    peds: G.peds.length,
+    cars: G.cars.length,
+  });
+
+  let last = performance.now();
+  let lastLive = 0;
+
+  function frame(now) {
+    const dt = Math.min(0.1, (now - last) / 1000);
+    last = now;
+    update(dt);
+    scene3d.step(dt, G);
+    world3d.updateDynamic(G, dt);
+    actors3d.update(G, dt, (idx) => focusLot(idx));
+    scene3d.render();
+    if (now - lastLive > 280) {
+      lastLive = now;
+      live();
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+boot();

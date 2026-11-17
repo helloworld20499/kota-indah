@@ -1,0 +1,14 @@
+{
+  "name": "kota-indah-night-street",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Kota Indah Night Street 3D Three.js tycoon game",
+  "scripts": {
+    "verify": "node scripts/verify-imports.mjs",
+    "serve": "python3 -m http.server 8173"
+  },
+  "dependencies": {
+    "three": "^0.174.0"
+  }
+}

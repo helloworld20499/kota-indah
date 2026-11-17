@@ -1,9 +1,9 @@
 import {
-  BARPAL, CONCEPTS, MAXH, ROOMS, SPECIAL_MENU, TRAIT_KEYS, TRAITS, clamp, esc, fm, hWage, onDuty, pick, rnd,
+  BARPAL, CONCEPTS, MAXH, SPECIAL_MENU, TRAIT_KEYS, TRAITS, clamp, fm, hWage, onDuty, pick,
 } from './config.js';
 import { AU } from './audio.js';
-import { G, bars, freeSpot, mkHostess, placeBouncer, placeH, placeM, takeSpot } from './state.js';
-import { barOpen, trafMul } from './sim.js';
+import { G, freeSpot, mkHostess, placeBouncer, placeH, resetBarDay } from './state.js';
+import { barOpen, checkAchievements, checkGoals, leaveRival, trafMul } from './sim.js';
 
 export function setBarConcept(l, conceptId, payFn, toastFn, rebuildFn) {
   const c = CONCEPTS[conceptId];
@@ -197,5 +197,87 @@ export function poachRivalHostess(rivalLot, targetBar, payFn, toastFn) {
     AU.sfx('error-soft-thud');
     toastFn(`${rivalLot.name} 的店长盯得很紧，这次挖角没能联系上目标`);
   }
+  return true;
+}
+
+export function buyoutCost(l) {
+  const wk = G?.rival?.[l.i]?.wk || 0;
+  const raw = 42000 + l.L * l.D * 320 + wk * 0.35;
+  const disc = G?.achievements?.includes('buyout_1') ? 0.9 : 1;
+  return Math.round((raw * disc) / 500) * 500;
+}
+
+export function buyoutRival(l, payFn, toastFn, rebuildFn) {
+  if (!l || l.kind !== 'rival') return false;
+  if (!G.bestRank || G.bestRank > 3) {
+    toastFn('需要先在周日街道排行冲进前 3 名，才具备收购对手的街区威望！');
+    return false;
+  }
+  const cost = buyoutCost(l);
+  if (!payFn(cost)) return false;
+
+  // Cleanly clear active rival customers & touts
+  l._g.slice().forEach((p) => leaveRival(p));
+  l.touts = [];
+
+  const rentBase = Math.round((l.L * l.D * 26) / 10) * 10;
+  const oldHs = (l.hs || []).slice();
+  const keepCount = Math.max(4, Math.floor(oldHs.length / 2));
+  const inherited = oldHs.slice(0, keepCount).map((h) => Object.assign(h, {
+    on: true,
+    sick: false,
+    state: 'idle',
+    with: null,
+    hidden: false,
+    todayH: 0,
+    todayFee: 0,
+    traits: h.traits || [],
+    loyalUntil: G.day + 5,
+  }));
+
+  Object.assign(l, {
+    kind: 'mine',
+    boughtOut: true,
+    customLay: l.lay,
+    loc: 1.15,
+    cost,
+    baseRent: rentBase,
+    rent: rentBase,
+    rentMul: 1,
+    decor: 2,
+    seats: 2,
+    rooms: 2,
+    sign: 2,
+    rep: 3.8,
+    price: l.price || 55,
+    concept: 'ktv',
+    accent: l.ac,
+    menu: { bucket: true, platter: true },
+    fl: '#D8CDB8',
+    hostesses: inherited,
+    hs: [],
+    scouts: [],
+    mkts: [],
+    bouncers: [],
+    req: { body: 'any', pers: 'any', looks: 0, att: 0 },
+    cands: [0, 1, 2].map(() => mkHostess(5.8, true)),
+    _seats: null,
+    _els: null,
+    _spots: null,
+    _spotT: {},
+    _sofaH: {},
+  });
+
+  resetBarDay(l);
+  l.hostesses.forEach((h) => placeH(l, h));
+  G.mine[l.i] = l;
+  delete G.rival[l.i];
+
+  G.stats.totalBuyouts = (G.stats.totalBuyouts || 0) + 1;
+  checkAchievements();
+  checkGoals();
+  AU.sfx('achievement');
+  rebuildFn?.(l);
+  toastFn(`🦈 商业收购成功！${l.name} 现已归入你的夜街帝国（保留 ${inherited.length} 名熟练公关）！`);
   return true;
 }

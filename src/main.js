@@ -6,7 +6,7 @@ import {
   G, allH, bars, freeSpot, mkHostess, newGame, placeH, placeM,
 } from './state.js';
 import {
-  applyShiftPreset, buyMenuItem, fireBouncer, giveHongbao, hireBouncer,
+  applyShiftPreset, buyMenuItem, buyoutRival, fireBouncer, giveHongbao, hireBouncer,
   poachRivalHostess, setBarConcept, trainHostess, transferHostess,
 } from './economy.js';
 import {
@@ -124,6 +124,13 @@ export function act(a, v) {
     const rival = G.lots[+v];
     const targetBar = bars()[0];
     if (rival) poachRivalHostess(rival, targetBar, pay, toast);
+  } else if (a === 'buyout') {
+    const rival = G.lots[+v];
+    if (rival && buyoutRival(rival, pay, toast, (lot) => world3d?.rebuildLot(lot, G))) {
+      G.tab = 'run';
+      focusLot(rival.i);
+      return;
+    }
   } else if (a === 'flyers') {
     if (G.flyers || !pay(300)) return;
     G.flyers = true;

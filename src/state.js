@@ -561,6 +561,7 @@ export function runtime(scheduleRegsFn) {
       }
     }
     const saved = G.mine[k];
+    const baseRent = saved.baseRent || l.rent || Math.round((l.L * l.D * 26) / 10) * 10;
     Object.assign(l, saved);
     l.kind = 'mine';
     l.concept = l.concept || 'bintang';
@@ -568,7 +569,9 @@ export function runtime(scheduleRegsFn) {
     l.bouncers = l.bouncers || [];
     l.ac = l.accent || CONCEPTS[l.concept]?.accent || ACCENTS[0];
     l.fl = '#D8CDB8';
-    l.rent = Math.round((l.rent * (l.rentMul || 1)) / 10) * 10;
+    l.loc = saved.loc || l.loc || 1.15;
+    l.baseRent = baseRent;
+    l.rent = Math.round((baseRent * (l.rentMul || 1)) / 10) * 10;
     G.mine[k] = l;
     resetBarDay(l);
   });
@@ -668,6 +671,7 @@ export function save() {
         boughtOut: !!l.boughtOut,
         customLay: l.customLay || null,
         cost: l.cost,
+        baseRent: l.baseRent || l.rent,
         rent: l.rent,
         loc: l.loc,
         price: l.price,

@@ -101,6 +101,15 @@ function makeMockElement(id = '', tag = 'div') {
 const domIds = ['panel', 'panelWrap', 'sheet', 'modal', 'toast', 'hDay', 'hEv', 'hMoney', 'hMoneyChip', 'tdot', 'speed', 'zall', 'ttl', 'subttl', 'hClock', 'auM', 'auS', 'btnSkipOpen', 'world-hud', 'barPills', 'skillDock', 'liveEventCard', 'btnQual', 'btnAch', 'achCnt', 'mobTabs', 'sheetGrabber'];
 const elements = new Map(domIds.map((id) => [id, makeMockElement(id)]));
 
+const storeMap = new Map();
+globalThis.window = {
+  localStorage: {
+    getItem: (k) => storeMap.get(k) ?? null,
+    setItem: (k, v) => storeMap.set(k, String(v)),
+    removeItem: (k) => storeMap.delete(k),
+  },
+};
+
 globalThis.document = {
   hidden: false,
   getElementById: (id) => {
@@ -210,16 +219,31 @@ if (myBars.length) {
   assert(rival && econ.rivalIntel(rival).modeCn.length > 0);
   assert(econ.poachRivalHostess(rival, b, pay, noop));
 
-  assert(evMod.activateSkill(b, 'happyHour', pay, noop));
-  assert(evMod.activateSkill(b, 'lowProfile', pay, noop));
-  b._g.push({ id: 'mockg' });
+  // Test rival buyout & save/load roundtrip with zero NaNs
+  G2.bestRank = 1;
+  G2.money = 200000;
+  assert(econ.buyoutRival(rival, pay, noop, (lot) => world3d.rebuildLot(lot, G2)));
+  assert.equal(rival.kind, 'mine');
+  assert(Number.isFinite(rival.rent) && Number.isFinite(rival.loc));
+  state.save();
+  assert(state.load(() => {}));
+  const reloadedRival = state.G.lots[rival.i];
+  assert.equal(reloadedRival.kind, 'mine');
+  assert(Number.isFinite(reloadedRival.rent) && Number.isFinite(reloadedRival.loc));
+  const bAfterLoad = state.G.lots[b.i];
+  state.G.t = 20 * 60;
+  state.G.money = 150000;
+
+  assert(evMod.activateSkill(bAfterLoad, 'happyHour', pay, noop));
+  assert(evMod.activateSkill(bAfterLoad, 'lowProfile', pay, noop));
+  bAfterLoad._g.push({ id: 'mockg' });
   const le = evMod.triggerLiveEvent(noop);
   assert(le && evMod.resolveLiveEvent('A', noop, noop, noop));
-  b._g.pop();
+  bAfterLoad._g.pop();
 
-  G2.view = b.i;
+  state.G.view = bAfterLoad.i;
   for (const tab of ['run', 'girls', 'scout', 'mkt']) {
-    G2.tab = tab;
+    state.G.tab = tab;
     ui.renderPanel();
   }
 }

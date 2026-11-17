@@ -3,7 +3,7 @@ import {
   T0, T_END, T_OPEN, TIER, TRAITS, UPG, WD, WMUL, activeH, clamp, esc, fm, moodTx, onDuty, tierOf, wday, where,
 } from './config.js';
 import { G, bars, cap } from './state.js';
-import { rivalIntel } from './economy.js';
+import { buyoutCost, rivalIntel } from './economy.js';
 import { barOpen, buzz, enterProb, evList, fair, lit, trafMul, wagesOf } from './sim.js';
 
 const $ = (id) => document.getElementById(id);
@@ -260,6 +260,8 @@ export function renderPanel() {
           <button class="btn pri mini" data-a="rent" data-v="${v.i}">租下来开酒吧</button></div>`;
       } else if (v.kind === 'rival') {
         const intel = rivalIntel(v);
+        const bCost = buyoutCost(v);
+        const canBuy = !!(G.bestRank && G.bestRank <= 3);
         h += `<div class="card"><h5>${esc(v.name)}<em>对手</em></h5><p>${v.cn}</p>
           <div class="kv" style="margin-top:6px"><span>经营策略</span><span>${intel.modeCn}</span></div>
           <div class="kv"><span>在岗公关</span><span>${v.hn} 人 · 颜值均分 ${intel.quality}/10</span></div>
@@ -267,6 +269,7 @@ export function renderPanel() {
           <div class="kv"><span>本周累计流水</span><span>${fm(intel.wkRev)}</span></div>
           <div class="kv"><span>店里客人</span><span data-live="rg"></span></div>
           <button class="btn mini" data-a="poach" data-v="${v.i}" ${G.poachedToday || !bars().length ? 'disabled' : ''}>${G.poachedToday ? '今日已派星探挖过角' : `🕵️ 派星探挖红牌 · ${fm(2500)}`}</button>
+          <button class="btn pri mini" data-a="buyout" data-v="${v.i}" ${canBuy ? '' : 'disabled'}>${canBuy ? `🦈 商业收购 · ${fm(bCost)}` : `🔒 周榜进前 3 解锁收购（约 ${fm(bCost)}）`}</button>
         </div>`;
       } else {
         h += `<div class="card"><h5>${esc(v.name)}<em>${lit(v) ? '营业中' : '打烊'}</em></h5><p>${v.cn}</p></div>`;
@@ -276,6 +279,9 @@ export function renderPanel() {
     }
 
     const bs = bars();
+    if (G.history && G.history.length > 0) {
+      h += `<div class="lbl">近 7 日营业利润趋势</div>${renderHistoryChart()}`;
+    }
     h += `<div class="lbl">我的酒吧</div>`;
     if (!bs.length) h += `<p class="hand" style="color:var(--gold)">新手起步：建议先租一间「🔥 推荐新手铺」（约 Rp 11k–15k），留足现金招公关！</p>`;
     bs.forEach((l) => {
@@ -453,6 +459,34 @@ export function live() {
   });
 }
 
+export function renderHistoryChart() {
+  const hist = (G?.history || []).slice(-7);
+  if (!hist.length) return '';
+  const maxAbs = Math.max(1000, ...hist.map((x) => Math.abs(x.opProfit ?? x.net ?? 0)));
+  return `<div class="hist-chart">${hist
+    .map((x) => {
+      const val = x.opProfit ?? x.net ?? 0;
+      const pct = Math.max(8, Math.round((Math.abs(val) / maxAbs) * 100));
+      return `<div class="hist-col" title="第${x.day}天 营业利润 ${fm(val)}"><div class="hist-bar${val < 0 ? ' neg' : ''}" style="height:${pct}%"></div><small>${x.wd.slice(1)}</small></div>`;
+    })
+    .join('')}</div>`;
+}
+
+export function diagnoseDay(d) {
+  if (!bars().length) return '还没有自己的门店，先在街上选一间「推荐新手铺」开张吧！';
+  const tips = [];
+  if (d.rf >= 2) tips.push(`今晚有 ${d.rf} 批客人因包厢满走掉，建议尽快升级「楼上包厢」！`);
+  if (d.nh >= 2) tips.push(`有 ${d.nh} 批客人等不到公关流失，建议多签约公关或使用「疲劳轮休」模板保持高体力。`);
+  if (d.tu >= 3) tips.push(`门口满座挡掉 ${d.tu} 批客人，可以升级「座位」增加沙发卡座与散桌！`);
+  if (d.sto >= 2) tips.push(`今晚被对手拉客仔截胡 ${d.sto} 位客人，请1–2名保安看场可防住 90% 截胡！`);
+  if (d.nl >= 3) tips.push(`有 ${d.nl} 位客人没合眼缘，调整星探找人要求或特训提升样貌/态度。`);
+  if (!tips.length) {
+    if (d.net < 0 && G.spent === 0) tips.push('今晚营业出现亏损，平日淡季可只派一半公关上班省下底薪，或调低酒价吸引进店。');
+    else tips.push('今晚运营整体稳健！解锁特色酒单与善用「买一送一 / 热舞秀」技能可再放大单晚毛利。');
+  }
+  return tips.slice(0, 2).join(' ');
+}
+
 export function showEndDayModal(d) {
   const rows = d.barSummaries
     .map((b) => `<div class="kv"><span>${esc(b.name)} · ${b.guests} 人（土 ${b.by.local}/台 ${b.by.tai}/中 ${b.by.cn}）· ${b.hours} 钟</span><span>${fm(b.rev)}</span></div>`)
@@ -461,6 +495,7 @@ export function showEndDayModal(d) {
     ? `<div class="lbl">本周街道排行</div>` +
       G.lastRank.slice(0, 8).map((x, i) => `<div class="kv" style="${x.mine ? 'color:var(--gold);font-weight:700' : ''}"><span>${i + 1}. ${esc(x.name)}</span><span>${fm(x.v)}</span></div>`).join('')
     : '';
+  const coach = diagnoseDay(d);
   $('sheet').innerHTML = `<h2>第 ${G.day} 天 · ${WD[wday(G.day)]} · 收摊</h2>
     <p class="hand">凌晨三点，门禁落杆，卷帘门拉下来了。</p>
     ${rows || '<p class="hand" style="color:var(--mute)">今天还没开店。</p>'}<hr>
@@ -475,6 +510,8 @@ export function showEndDayModal(d) {
     ${G.spent ? `<div class="kv"><span>今日投资</span><span>${fm(-G.spent)}</span></div>` : ''}
     <hr><div class="kv tot"><span>今日净额</span><span style="color:${d.net < 0 ? 'var(--coral)' : 'var(--teal)'}">${fm(d.net)}</span></div>
     <div class="kv"><span>手头现金</span><span>${fm(G.money)}</span></div>
+    ${renderHistoryChart()}
+    <div class="coach-box"><b>📊 经营复盘教练</b>${coach}</div>
     ${d.got.map((g) => `<p class="hand" style="color:var(--teal)">目标完成：${g.t}（+${fm(g.r)}）</p>`).join('')}
     ${bars().length ? `<p class="hand" style="color:var(--mute);margin-top:8px">新回头客 ${d.nr} · 保安赶走 ${d.bnc || 0} · 没人陪 ${d.nh} · 包厢满 ${d.rf} · 满座 ${d.tu} · 被拉走 ${d.sto}</p>` : ''}
     ${rank}${d.extra.map((t) => `<p class="hand">${t}</p>`).join('')}<br>

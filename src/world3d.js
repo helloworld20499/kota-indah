@@ -786,6 +786,25 @@ export class World3D {
         }
       }
     }
+
+    // Authentic Jakarta rooftop micro-details: Toren Air water tank & AC outdoor units
+    if (!l.top && l.kind !== 'empty') {
+      const yRoof = WH * Z_SCALE + 0.08;
+      const tankCol = l.i % 3 === 0 ? '#d86d28' : '#2466ad';
+      const tank = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.24, 0.24, 0.52, 8),
+        this.getMat(tankCol, { rough: 0.45 }),
+      );
+      if (tallOnY0) tank.position.set(x0 + L * 0.82, yRoof + 0.26, y0 + 0.22);
+      else tank.position.set(x0 + 0.22, yRoof + 0.26, y1 - L * 0.82);
+      fg.add(tank);
+
+      const acMat = this.getMat('#c4c1b8', { rough: 0.7 });
+      [0.24, 0.56].forEach((frac) => {
+        if (tallOnY0) fg.add(boxMesh(x0 + L * frac, y0 + 0.14, 0.36, 0.22, 0.26, 2.55, acMat));
+        else fg.add(boxMesh(x0 + 0.14, y1 - L * frac, 0.22, 0.36, 0.26, 2.55, acMat));
+      });
+    }
   }
 
   _buildInterior(grp, l, els, sofaColor) {

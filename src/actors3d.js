@@ -44,6 +44,7 @@ export class Actors3D {
     this._initVehicles();
     this._initGlows();
     this._initRain();
+    this._initSmoke();
     this._initConfetti();
     this._initHudPool();
   }
@@ -133,6 +134,24 @@ export class Actors3D {
     this.rainLines.visible = false;
     this.rainLines.frustumCulled = false;
     this.scene.add(this.rainLines);
+  }
+
+  _initSmoke() {
+    const COUNT = 20;
+    const pos = new Float32Array(COUNT * 3);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const mat = new THREE.PointsMaterial({
+      color: '#dfd8cc',
+      size: 0.32,
+      transparent: true,
+      opacity: 0.38,
+      depthWrite: false,
+    });
+    this.smokePoints = new THREE.Points(geo, mat);
+    this.smokePoints.frustumCulled = false;
+    this.smokeCount = COUNT;
+    this.scene.add(this.smokePoints);
   }
 
   _initConfetti() {
@@ -449,6 +468,8 @@ export class Actors3D {
         const v = G.cars[i];
         this._pushGlow(state, v.x + (v.ax ? 0 : v.dir * 1.3), v.y + (v.ax ? v.dir * 1.3 : 0), 2.3 * rainMul, '#fff0b8');
       }
+      // Street food gerobak warm lantern glow
+      this._pushGlow(state, 52.4, 33.5, 3.0 * rainMul, '#ffaa44');
     }
     if (G.raidUntil && G.t < G.raidUntil) {
       const fl = ((now / 220) | 0) % 2;
@@ -512,10 +533,36 @@ export class Actors3D {
       this.confetti.visible = false;
     }
 
-    // 6. Floating FX money popups & Overview shop signs
+    // 5b. Gerobak satay cart rising steam/smoke puffs
+    if (this.smokePoints) {
+      const sArr = this.smokePoints.geometry.attributes.position.array;
+      const tSec = now * 0.001;
+      for (let i = 0; i < this.smokeCount; i++) {
+        const phase = (tSec * 0.55 + i / this.smokeCount) % 1;
+        sArr[i * 3] = 52.25 + Math.sin(tSec * 1.6 + i) * 0.16 * phase;
+        sArr[i * 3 + 1] = 1.25 + phase * 1.9;
+        sArr[i * 3 + 2] = 33.5 + Math.cos(tSec * 1.3 + i) * 0.16 * phase;
+      }
+      this.smokePoints.geometry.attributes.position.needsUpdate = true;
+    }
+
+    // 6. Floating FX money popups, Music Notes & Overview shop signs
     for (let i = 0; i < G.fx.length; i++) {
       const f = G.fx[i];
       this._pushHud(state, f.x, f.z * Z_SCALE * 0.45, f.y, f.t, 'fx');
+    }
+
+    if (camDist < 42 && barOpen()) {
+      for (let i = 0; i < G.lots.length; i++) {
+        const l = G.lots[i];
+        if (l.kind !== 'mine') continue;
+        if (l.dj || (l.roomsUsed || 0) > 0) {
+          const cx2 = (l.x0 + l.x1) / 2;
+          const cz2 = (l.y0 + l.y1) / 2;
+          const bob = Math.sin(now / 360 + i) * 0.28;
+          this._pushHud(state, cx2, 3.8 + bob, cz2, l.dj && l.roomsUsed ? '♫ ♪' : '♪', 'gold');
+        }
+      }
     }
 
     if (camDist > 29 && G.view == null) {

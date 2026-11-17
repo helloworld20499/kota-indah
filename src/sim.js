@@ -622,6 +622,7 @@ export function consider(p, l, d) {
         if (l.bouncers[0]) {
           l.bouncers[0]._chase = 5;
         }
+        AU.sfx('pop-bubble', 2200);
         bubble(p, '保安赶走拉客仔', '#3DD6A5');
         break;
       }

@@ -63,8 +63,8 @@ export const WD = ['周一', '周二', '周三', '周四', '周五', '周六', '
 export const WMUL = [0.6, 0.6, 0.65, 0.7, 1.2, 1.5, 0.9];
 export const TIER = ['新人', '红牌', '头牌'];
 export const TIERB = [0, 0.4, 0.9];
-export const BODY = { slim: '苗条', curvy: '丰满' };
-export const PERS = { intro: '内向', extro: '外向' };
+export const BODY = { slim: '苗条', curvy: '丰满', prime: '黄金身段' };
+export const bodyMatches = (hBody, wantBody) => wantBody === 'any' || hBody === 'prime' || hBody === wantBody;
 
 export const UPG = {
   decor: { cn: '装修', desc: '客人更愿意进门，坐得更舒服，满意度更高', cost: [6000, 12000, 24000] },
@@ -454,7 +454,7 @@ export const effAtt = (h) => clamp(h.att - (h.en < 20 ? 4 : h.en < 40 ? 2 : 0) +
 export const moodTx = (m) => (m >= 70 ? ['开心', '#1F6E5A'] : m >= 40 ? ['一般', '#6E5F50'] : ['不爽', '#B5362F']);
 export const hWage = (h) => {
   const rMul = [1, 0.85, 1.0, 1.12, 1.28, 1.5][clamp(h.rarity || 2, 1, 5)];
-  return Math.round(((110 + 26 * h.looks + 10 * h.ps + 12 * h.att) * rMul) / 10) * 10;
+  return Math.round(((110 + 36 * h.looks + 12 * h.att) * rMul) / 10) * 10;
 };
 
 export const Lw = (l, u, v) =>

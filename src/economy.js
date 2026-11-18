@@ -220,10 +220,10 @@ export function poachRivalHostess(rivalLot, targetBar, payFn, toastFn) {
   G.poachedToday = true;
 
   const r = G.rival[rivalLot.i];
-  if (Math.random() < 0.72) {
-    const star = mkHostess(6.8, true);
-    star.pop = 15 + ((Math.random() * 20) | 0);
-    targetBar.cands.unshift(star);
+  if (Math.random() < 0.75) {
+    G.slot = G.slot || { lv: 1, freeLeft: 0, paidSpinsToday: 0, pity: 0, locks: [false, false, false], reels: [0, 0, 0], pending: null, lastJackpot: false };
+    G.slot.freeLeft = (G.slot.freeLeft || 0) + 2;
+    G.slot.pity = Math.min(20, (G.slot.pity || 0) + 3);
     if (r && r.hn > 3) {
       r.hn--;
       rivalLot.hn = r.hn;
@@ -236,10 +236,10 @@ export function poachRivalHostess(rivalLot, targetBar, payFn, toastFn) {
       }
     }
     AU.sfx('achievement');
-    toastFn(`挖角成功！${rivalLot.name} 的红牌候选「${star.name}」已到 ${targetBar.name} 应聘！`);
+    toastFn(`🕵️ 摸清 ${rivalLot.name} 猎头渠道！获得 +2 次免费摇人机会，5等名花保底进度 +3！`);
   } else {
     AU.sfx('error-soft-thud');
-    toastFn(`${rivalLot.name} 的店长盯得很紧，这次挖角没能联系上目标`);
+    toastFn(`${rivalLot.name} 的店长盯得很紧，这次没能套出猎头渠道`);
   }
   return true;
 }
@@ -316,8 +316,8 @@ export function buyoutRival(l, payFn, toastFn, rebuildFn) {
     scouts: [],
     mkts: [],
     bouncers: [],
-    req: { body: 'any', pers: 'any', looks: 0, att: 0 },
-    cands: [0, 1, 2].map(() => mkHostess(5.8, true)),
+    req: { body: 'any', looks: 0, att: 0 },
+    cands: [],
     _seats: null,
     _els: null,
     _spots: null,

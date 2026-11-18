@@ -10,7 +10,7 @@ import {
   hireSlotPending, poachRivalHostess, setBarConcept, trainHostess, transferHostess,
 } from './economy.js';
 import {
-  spinSlotMachine, toggleSlotLock, upgradeSlotMachine,
+  ALL_REEL_SYMBOLS, rarityOf, spinSlotMachine, toggleSlotLock, upgradeSlotMachine,
 } from './codex.js';
 import {
   activateSkill, resolveLiveEvent, tickLiveEvent, triggerLiveEvent,
@@ -24,8 +24,8 @@ import { World3D } from './world3d.js';
 import { Actors3D } from './actors3d.js';
 import { LIGHT_MODES } from './themes.js';
 import {
-  live, priceHint, renderLiveEvent, renderPanel, showAchievementsModal, showBriefModal,
-  showCodexModal, showEndDayModal, toast,
+  live, priceHint, renderLiveEvent, renderPanel, renderSlotCell, showAchievementsModal,
+  showBriefModal, showCodexModal, showEndDayModal, toast,
 } from './ui.js';
 
 const $ = (id) => document.getElementById(id);
@@ -33,6 +33,198 @@ const $ = (id) => document.getElementById(id);
 let scene3d = null;
 let world3d = null;
 let actors3d = null;
+let slotSpinCtrl = null;
+
+function cancelSlotSpin() {
+  if (!slotSpinCtrl) {
+    if (G) G._slotSpinning = false;
+    return;
+  }
+  slotSpinCtrl.timers.forEach((t) => clearTimeout(t));
+  if (slotSpinCtrl.tickTimer) clearTimeout(slotSpinCtrl.tickTimer);
+  slotSpinCtrl.anims.forEach((an) => { try { an.cancel(); } catch (_) {} });
+  slotSpinCtrl = null;
+  if (G) G._slotSpinning = false;
+}
+
+function burstSlotParticles(tier) {
+  const canvas = $('slotFxCanvas');
+  if (!canvas || !canvas.parentElement) return;
+  const w = canvas.parentElement.clientWidth || 340;
+  const h = canvas.parentElement.clientHeight || 110;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  ctx.scale(dpr, dpr);
+
+  const count = tier >= 5 ? 58 : tier === 4 ? 38 : tier === 3 ? 24 : 12;
+  const palette = tier >= 5
+    ? ['#F6D55C', '#E8B959', '#B5362F', '#FFF6D6', '#D05A9C']
+    : tier === 4
+      ? ['#9D5CD6', '#E8B959', '#D05A9C', '#FFFDF8']
+      : ['#265385', '#1F6E5A', '#E8B959', '#C8574B'];
+
+  const parts = Array.from({ length: count }, (_, i) => {
+    const colX = (w / 6) * (1 + (i % 3) * 2);
+    const ang = -Math.PI / 2 + (Math.random() - 0.5) * 1.9;
+    const spd = 2.2 + Math.random() * (tier >= 4 ? 5.2 : 3.6);
+    return {
+      x: colX + (Math.random() - 0.5) * 32,
+      y: h * 0.55 + (Math.random() - 0.5) * 16,
+      vx: Math.cos(ang) * spd,
+      vy: Math.sin(ang) * spd - 1.2,
+      sz: (tier >= 5 ? 4.5 : 3.5) + Math.random() * 3.5,
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.25,
+      col: palette[i % palette.length],
+      star: tier >= 4 && i % 2 === 0,
+      life: 1.0,
+      decay: 0.014 + Math.random() * 0.012,
+    };
+  });
+
+  function stepFx() {
+    ctx.clearRect(0, 0, w, h);
+    let alive = 0;
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      if (p.life <= 0) continue;
+      alive++;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.16;
+      p.vx *= 0.985;
+      p.rot += p.vr;
+      p.life -= p.decay;
+      if (p.life <= 0) continue;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, p.life));
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.col;
+      if (p.star) {
+        ctx.beginPath();
+        for (let k = 0; k < 5; k++) {
+          const a1 = (k * Math.PI * 2) / 5 - Math.PI / 2;
+          const a2 = a1 + Math.PI / 5;
+          ctx.lineTo(Math.cos(a1) * p.sz, Math.sin(a1) * p.sz);
+          ctx.lineTo(Math.cos(a2) * p.sz * 0.45, Math.sin(a2) * p.sz * 0.45);
+        }
+        ctx.closePath();
+        ctx.fill();
+      } else {
+        ctx.fillRect(-p.sz * 0.65, -p.sz * 0.4, p.sz * 1.3, p.sz * 0.8);
+      }
+      ctx.restore();
+    }
+    if (alive > 0) requestAnimationFrame(stepFx);
+    else ctx.clearRect(0, 0, w, h);
+  }
+  requestAnimationFrame(stepFx);
+}
+
+function startSlotSpinAnimation(prevReels, prevLocks, res, deferredMsg, deferredConfetti) {
+  cancelSlotSpin();
+  const CELL_H = 82;
+  const finalReels = G.slot.reels.slice();
+  const finalTier = rarityOf(res).r;
+  const suspense = finalTier >= 4 && !prevLocks[0];
+  const stopTimes = [
+    prevLocks[0] ? 160 : 620,
+    prevLocks[1] ? 240 : (suspense ? 1180 : 1040),
+    prevLocks[2] ? 320 : (suspense ? 1740 : 1440),
+  ];
+
+  G._slotSpinning = true;
+  renderPanel();
+
+  const ctrl = { timers: [], tickTimer: null, anims: [], finished: false, finish: null };
+  slotSpinCtrl = ctrl;
+
+  const finish = () => {
+    if (ctrl.finished) return;
+    ctrl.finished = true;
+    cancelSlotSpin();
+    checkAchievements();
+    renderPanel();
+    AU.slotWin(finalTier);
+    if (deferredMsg) toast(deferredMsg);
+    if (deferredConfetti) actors3d?.spawnConfettiBurst(deferredConfetti.x, deferredConfetti.y, deferredConfetti.z);
+    burstSlotParticles(finalTier);
+  };
+  ctrl.finish = finish;
+
+  const reelCounts = [
+    14,
+    suspense ? 24 : 20,
+    suspense ? 32 : 26,
+  ];
+
+  for (let col = 0; col < 3; col++) {
+    const strip = $('reelStrip' + col);
+    if (!strip) continue;
+    if (prevLocks[col]) {
+      ctrl.timers.push(setTimeout(() => {
+        $('slotCol' + col)?.classList.add('stopped');
+        AU.reelStop(col, finalTier);
+      }, stopTimes[col]));
+      continue;
+    }
+    const poolLen = ALL_REEL_SYMBOLS[col].length;
+    const nCells = reelCounts[col];
+    const seq = [prevReels[col] || 0];
+    let cur = prevReels[col] || 0;
+    for (let k = 1; k < nCells - 1; k++) {
+      cur = (cur + 1 + ((Math.random() * Math.max(1, poolLen - 1)) | 0)) % poolLen;
+      seq.push(cur);
+    }
+    seq.push(finalReels[col] || 0);
+    strip.innerHTML = seq.map((idx) => renderSlotCell(col, idx)).join('');
+    const targetY = -((nCells - 1) * CELL_H);
+    if (typeof strip.animate === 'function') {
+      const anim = strip.animate(
+        [
+          { transform: 'translate3d(0, 0px, 0)' },
+          { transform: `translate3d(0, ${targetY}px, 0)` },
+        ],
+        {
+          duration: stopTimes[col],
+          easing: 'cubic-bezier(0.12, 0.88, 0.24, 1.03)',
+          fill: 'forwards',
+        },
+      );
+      ctrl.anims.push(anim);
+    } else {
+      strip.style.transform = `translate3d(0, ${targetY}px, 0)`;
+    }
+
+    ctrl.timers.push(setTimeout(() => {
+      const colEl = $('slotCol' + col);
+      colEl?.classList.add('stopped');
+      AU.reelStop(col, finalTier);
+      if (col === 0 && suspense) {
+        document.querySelector('.slot-cabinet')?.classList.add('anticipation');
+      }
+    }, stopTimes[col]));
+  }
+
+  let tickStep = 0;
+  const maxStop = Math.max(...stopTimes);
+  const tStart = performance.now();
+  const scheduleTick = () => {
+    if (ctrl.finished || slotSpinCtrl !== ctrl) return;
+    const elapsed = performance.now() - tStart;
+    if (elapsed >= maxStop - 60) return;
+    AU.slotTick(tickStep++);
+    const gap = Math.round(58 + (elapsed / maxStop) * 75);
+    ctrl.tickTimer = setTimeout(scheduleTick, gap);
+  };
+  scheduleTick();
+
+  ctrl.timers.push(setTimeout(finish, maxStop + 130));
+}
 
 function pay(n) {
   if (G.money < n) {
@@ -46,6 +238,7 @@ function pay(n) {
 }
 
 export function focusLot(i) {
+  cancelSlotSpin();
   G.view = i;
   if (scene3d && G.lots[i]) scene3d.focusLot(G.lots[i]);
   renderPanel();
@@ -54,14 +247,17 @@ export function focusLot(i) {
 export function act(a, v) {
   const l = G.view != null && G.lots[G.view]?.kind === 'mine' ? G.lots[G.view] : null;
   if (a === 'back') {
+    cancelSlotSpin();
     G.view = null;
     if (scene3d) scene3d.overview();
   } else if (a === 'enter') {
     focusLot(+v);
     return;
   } else if (a === 'tab') {
+    cancelSlotSpin();
     G.tab = v;
   } else if (a === 'streetTab') {
+    cancelSlotSpin();
     G.streetTab = v;
   } else if (a === 'girlSub') {
     G.girlSub = v;
@@ -87,8 +283,8 @@ export function act(a, v) {
       scouts: [],
       mkts: [],
       bouncers: [],
-      req: { body: 'any', pers: 'any', looks: 0, att: 0 },
-      cands: [0, 1, 2, 3, 4].map(() => mkHostess(4.6)),
+      req: { body: 'any', looks: 0, att: 0 },
+      cands: [],
     });
     AU.sfx('level-up');
     e.ac = e.accent;
@@ -111,13 +307,12 @@ export function act(a, v) {
       lowProfile: { activeUntil: 0, cdUntil: 0 },
     };
     G.mine[e.i] = e;
+    if (n === 0 && G.slot) G.slot.freeLeft = (G.slot.freeLeft || 0) + 1;
     G.streetTab = 'mine';
-    G.tab = 'girls';
-    G.girlSub = 'cands';
-    G._girlSubAuto = e.i;
+    G.tab = 'scout';
     world3d?.rebuildLot(e, G);
     focusLot(e.i);
-    toast('开张了！先签几个公关，再点击「跳至 17:00 开门」！');
+    toast('开张了！快拉动「🎰 摇人」招募机组建公关班底，签好人再点 17:00 开门！');
     checkGoals();
     checkAchievements();
     return;
@@ -305,24 +500,36 @@ export function act(a, v) {
   } else if (a === 'auto' && l) {
     applyShiftPreset(l, 'smart', toast);
   } else if (a === 'slotSpin') {
-    const res = spinSlotMachine(G, l, pay, toast, (x, y, z) => actors3d?.spawnConfettiBurst(x, y, z));
+    if (G._slotSpinning && slotSpinCtrl?.finish) {
+      slotSpinCtrl.finish();
+      return;
+    }
+    const prevReels = (G.slot?.reels || [0, 0, 0]).slice();
+    const prevLocks = (G.slot?.locks || [false, false, false]).slice();
+    let deferredMsg = '';
+    let deferredConfetti = null;
+    const res = spinSlotMachine(
+      G,
+      l,
+      pay,
+      (msg) => { deferredMsg = msg; },
+      (x, y, z) => { deferredConfetti = { x, y, z }; },
+    );
     if (res) {
-      checkAchievements();
-      renderPanel();
-      const reelsEl = document.querySelector('.slot-reels');
-      if (reelsEl) {
-        reelsEl.classList.add('spinning');
-        setTimeout(() => reelsEl.classList.remove('spinning'), 340);
-      }
+      startSlotSpinAnimation(prevReels, prevLocks, res, deferredMsg, deferredConfetti);
       return;
     }
   } else if (a === 'slotLock') {
+    cancelSlotSpin();
     toggleSlotLock(G, +v, toast);
   } else if (a === 'slotUp') {
+    cancelSlotSpin();
     upgradeSlotMachine(G, pay, toast);
   } else if (a === 'hirePending') {
+    cancelSlotSpin();
     hireSlotPending(l, toast);
   } else if (a === 'openCodex') {
+    cancelSlotSpin();
     AU.sfx('modal-open-rise');
     showCodexModal(G?._codexTab || 'girls');
     return;

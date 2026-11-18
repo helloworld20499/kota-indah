@@ -1,5 +1,5 @@
 import {
-  ACCENTS, BARPAL, BNAMES, CONCEPTS, HAIRS, HNAMES, LAY, LOTDEF, MNAMES,
+  ACCENTS, BARPAL, BNAMES, BODY, CONCEPTS, HAIRS, HNAMES, LAY, LOTDEF, MNAMES,
   DRESS, ROOMS, SKINS, TYPE, T0, T_END, T_OPEN, T_RIVAL, TRAIT_KEYS,
   Lw, R, clamp, hWage, onDuty, outPt, pick, pickC, playerEls, rnd, scaleEls, stOf, uid,
 } from './config.js';
@@ -150,8 +150,6 @@ export function mkHostess(q, forceTrait = false, forcedRarity = null) {
     body: R() < 0.5 ? 'slim' : 'curvy',
     looks: r(),
     att: r(),
-    pers: R() < 0.5 ? 'intro' : 'extro',
-    ps: r(),
     hair: pick(HAIRS),
     skin: pick(SKINS),
     dress: pick(DRESS),
@@ -181,7 +179,6 @@ export function mkHostess(q, forceTrait = false, forcedRarity = null) {
 export function applyReq(h, req, ab) {
   const p = 0.45 + 0.05 * ab;
   if (req.body !== 'any' && h.body !== req.body && R() < p) h.body = req.body;
-  if (req.pers !== 'any' && h.pers !== req.pers && R() < p) h.pers = req.pers;
   for (let k = 0; k < 2; k++) {
     if (req.looks && h.looks < req.looks && R() < p) h.looks = clamp(h.looks + 1 + ((R() * 3) | 0), 1, 10);
     if (req.att && h.att < req.att && R() < p) h.att = clamp(h.att + 1 + ((R() * 3) | 0), 1, 10);
@@ -193,21 +190,8 @@ export function applyReq(h, req, ab) {
   return h;
 }
 
-export function scoutDay(l) {
-  const out = [];
-  const req = l.req;
-  const nreq = (req.body !== 'any') + (req.pers !== 'any') + (req.looks > 0) + (req.att > 0);
-  if (!l.scouts.length) {
-    const n = 2 + (R() < 0.5 ? 1 : 0);
-    for (let i = 0; i < n; i++) out.push(mkHostess(3.8));
-  }
-  l.scouts.forEach((s) => {
-    const base = s.kind === 'q' ? 1 + Math.floor(s.ab / 3) : 3 + Math.floor(s.ab / 2);
-    const n = Math.max(1, Math.round(base * (1 - 0.12 * nreq)));
-    const q = s.kind === 'q' ? 3 + 0.62 * s.ab : 2.6 + 0.36 * s.ab;
-    for (let i = 0; i < n; i++) out.push(applyReq(mkHostess(q), req, s.ab));
-  });
-  return out.slice(0, 10);
+export function scoutDay() {
+  return [];
 }
 
 export function mkScout() {
@@ -613,7 +597,9 @@ export function runtime(scheduleRegsFn) {
     l.loc = saved.loc || l.loc || 1.15;
     l.baseRent = baseRent;
     l.rent = Math.round((baseRent * (l.rentMul || 1) * whaleRentMul) / 10) * 10;
+    l.cands = [];
     (l.hostesses || []).forEach((h) => {
+      if (!BODY[h.body]) h.body = 'slim';
       if (!h.rarity) {
         h.rarity = h.legendId ? 5 : h.looks >= 8 ? 4 : h.looks >= 6 ? 3 : h.looks >= 4 ? 2 : 1;
       }
@@ -699,7 +685,7 @@ export function newGame(scheduleRegsFn) {
 
 const HF = [
   'id', 'rarity', 'legendId', 'acc', 'title',
-  'name', 'body', 'looks', 'att', 'pers', 'ps', 'hair', 'skin', 'dress',
+  'name', 'body', 'looks', 'att', 'hair', 'skin', 'dress',
   'reviews', 'wage', 'en', 'mood', 'pop', 'on', 'streak', 'hs', 'lt', 'pr', 'refused',
   'raiseAsk', 'sick', 'traits', 'loyalUntil', 'returnUntil',
 ];
@@ -757,7 +743,7 @@ export function save() {
         money: G.money,
         best: G.best,
         mine,
-        regs: G.regs.map((r) => pickF(r, ['id', 'type', 'bar', 'n', 'pers', 'days', 'daily', 'pr', 'hid'])),
+        regs: G.regs.map((r) => pickF(r, ['id', 'type', 'bar', 'n', 'days', 'daily', 'pr', 'hid'])),
         mk: G.mk,
         tab: G.tab,
         rival: G.rival,

@@ -303,11 +303,14 @@ const hProbe = mkHostess(5);
 assert.equal(hProbe.bs, undefined, 'body must be categorical without numeric bs');
 assert(hProbe.body === 'slim' || hProbe.body === 'curvy');
 
-const hSlim = { body: 'slim', looks: 7, pers: 'extro', ps: 7, att: 7, pop: 10 };
-const hCurvy = { body: 'curvy', looks: 7, pers: 'extro', ps: 7, att: 7, pop: 10 };
-assert(choiceScore({ ctype: 'local', prefPers: 'extro' }, hCurvy) > choiceScore({ ctype: 'local', prefPers: 'extro' }, hSlim), 'local must prefer curvy');
-assert(choiceScore({ ctype: 'tai', prefPers: 'extro' }, hSlim) > choiceScore({ ctype: 'tai', prefPers: 'extro' }, hCurvy), 'tai must prefer slim');
-assert.equal(choiceScore({ ctype: 'cn', prefPers: 'extro' }, hSlim), choiceScore({ ctype: 'cn', prefPers: 'extro' }, hCurvy), 'cn accepts both equally');
+const hSlim = { body: 'slim', looks: 7, att: 7, pop: 10 };
+const hCurvy = { body: 'curvy', looks: 7, att: 7, pop: 10 };
+const hPrime = { body: 'prime', looks: 7, att: 7, pop: 10 };
+assert(choiceScore({ ctype: 'local' }, hCurvy) > choiceScore({ ctype: 'local' }, hSlim), 'local must prefer curvy');
+assert(choiceScore({ ctype: 'tai' }, hSlim) > choiceScore({ ctype: 'tai' }, hCurvy), 'tai must prefer slim');
+assert.equal(choiceScore({ ctype: 'cn' }, hSlim), choiceScore({ ctype: 'cn' }, hCurvy), 'cn accepts both equally');
+assert(choiceScore({ ctype: 'local' }, hPrime) > choiceScore({ ctype: 'local' }, hCurvy), 'prime matches local top tier');
+assert(choiceScore({ ctype: 'tai' }, hPrime) > choiceScore({ ctype: 'tai' }, hSlim), 'prime matches tai top tier');
 
 const myBars = G2.lots.filter((l) => l.kind === 'mine');
 if (myBars.length) {
@@ -323,15 +326,15 @@ if (myBars.length) {
   if (!b.hostesses.length) { b.hostesses.push(h0); placeH(b, h0); }
   const hHi = Object.assign(mkHostess(5), { att: 9, en: 90, mood: 80, pop: 0 });
   const hLo = Object.assign(mkHostess(5), { att: 2, en: 90, mood: 80, pop: 0 });
-  const mockGuest = { ctype: 'local', prefPers: 'extro', x: b.x0 + 1, y: b.y0 + 1, ph: 0 };
+  const mockGuest = { ctype: 'local', x: b.x0 + 1, y: b.y0 + 1, ph: 0 };
   review(mockGuest, hHi, b, 8.2);
   review(mockGuest, hLo, b, 4.0);
   assert(hHi.pop > hLo.pop, `Expected high-attitude hostess pop (${hHi.pop}) > low-attitude (${hLo.pop})`);
 
   // Verify wish fulfillment drives uncapped paid hours (> 5 possible)
-  const hDream = { body: 'slim', looks: 10, pers: 'extro', ps: 10, att: 10, pop: 120, traits: ['polyglot'] };
-  const hAvg = { body: 'curvy', looks: 4, pers: 'intro', ps: 4, att: 3, pop: 0, traits: [] };
-  const pDream = { ctype: 'tai', prefPers: 'extro' };
+  const hDream = { body: 'slim', looks: 10, att: 10, pop: 120, traits: ['polyglot'] };
+  const hAvg = { body: 'curvy', looks: 4, att: 3, pop: 0, traits: [] };
+  const pDream = { ctype: 'tai' };
   let sumDream = 0;
   let sumAvg = 0;
   let maxDreamPaid = 0;
@@ -385,24 +388,27 @@ if (myBars.length) {
   for (const tab of ['run', 'upg', 'girls', 'scout', 'mkt']) {
     state.G.tab = tab;
     if (tab === 'girls') {
-      state.G.girlSub = 'roster';
       ui.renderPanel();
       assertPanelValid('bar:girls:roster');
       assert(panelEl.innerHTML.includes('class="vbar"'), 'Expected visual attribute bars on roster');
       assert(panelEl.innerHTML.includes('type-pill'), 'Expected categorical body type pill on roster');
-      assert(panelEl.innerHTML.includes('h-bars-2') && !panelEl.innerHTML.includes('<small>苗条</small>') && !panelEl.innerHTML.includes('<small>丰满</small>'), 'Expected no bar for body type on roster');
+      assert(panelEl.innerHTML.includes('h-charm-row') && !panelEl.innerHTML.includes('<small>苗条</small>') && !panelEl.innerHTML.includes('<small>丰满</small>'), 'Expected single charm bar and no bar for body type on roster');
+      assert(!panelEl.innerHTML.includes('内向') && !panelEl.innerHTML.includes('外向'), 'Personality traits must be removed from roster');
       assert(!panelEl.innerHTML.includes('态 '), 'Hidden attitude leaked on roster');
-      state.G.girlSub = 'cands';
+      assert(!panelEl.innerHTML.includes('data-a="girlSub"'), 'Passive cands subtab must be removed');
+    } else if (tab === 'scout') {
+      codexMod.spinSlotMachine(state.G, bAfterLoad, pay, noop, noop);
       ui.renderPanel();
-      assertPanelValid('bar:girls:cands');
-      assert(panelEl.innerHTML.includes('class="vbar"'), 'Expected visual attribute bars on candidates');
-      assert(panelEl.innerHTML.includes('type-pill'), 'Expected categorical body type pill on candidates');
-      assert(!panelEl.innerHTML.includes('h-bars-3'), 'Expected h-bars-2 only (no bar for body type)');
-      assert(!panelEl.innerHTML.includes('态 '), 'Hidden attitude leaked on candidates');
+      assertPanelValid('bar:scout');
+      assert(panelEl.innerHTML.includes('slot-cabinet') && panelEl.innerHTML.includes('slot-window'), 'Expected slot cabinet reel windows');
+      assert(panelEl.innerHTML.includes('class="vbar"') && panelEl.innerHTML.includes('type-pill'), 'Expected visual bars & body pill on dispensed candidate');
+      assert(panelEl.innerHTML.includes('h-charm-row') && !panelEl.innerHTML.includes('h-bars-3'), 'Expected single charm bar only on slot candidate');
+      assert(!panelEl.innerHTML.includes('内向') && !panelEl.innerHTML.includes('外向'), 'Personality traits must be removed from slot candidate');
+      assert(!panelEl.innerHTML.includes('态 ') && !panelEl.innerHTML.includes('态度'), 'Hidden attitude leaked in scout tab');
+      state.G.slot.pending = null;
     } else {
       ui.renderPanel();
       assertPanelValid(`bar:${tab}`);
-      if (tab === 'scout') assert(!panelEl.innerHTML.includes('态度'), 'Hidden attitude preference leaked in scout tab');
     }
   }
 
@@ -416,7 +422,6 @@ if (myBars.length) {
   state.G.t = 26.5 * 60;
   const mockNightGuest = {
     ctype: 'cn',
-    prefPers: 'extro',
     x: bAfterLoad.x0 + 1,
     y: bAfterLoad.y0 + 1,
     home: [bAfterLoad.x0 + 1, bAfterLoad.y0 + 1],
@@ -494,7 +499,7 @@ if (myBars.length) {
     bar5.hostesses.forEach((h) => { h.state = 'idle'; h.hidden = false; h.en = 90; });
     const wObj = { id: 'hendra', bar: bar5.i, done: false };
     const mPeds = Array.from({ length: hendraDef.n }, (_, idx) => ({
-      whale: wObj, bar: bar5.i, st: 'sit', seat: idx, ctype: hendraDef.ctype, prefPers: 'extro', x: bar5.x0 + 1, y: bar5.y0 + 1, home: [bar5.x0 + 1, bar5.y0 + 1], door: bar5.doors[0],
+      whale: wObj, bar: bar5.i, st: 'sit', seat: idx, ctype: hendraDef.ctype, x: bar5.x0 + 1, y: bar5.y0 + 1, home: [bar5.x0 + 1, bar5.y0 + 1], door: bar5.doors[0],
     }));
     curG5.peds.push(...mPeds);
     whaleDecide(mPeds[0], bar5);
@@ -522,6 +527,11 @@ if (myBars.length) {
     assert(curG5.money >= beforeM, 'Expected live event optB timeout fallback to never lose cash');
     bar5._g.pop();
   }
+
+  // 7) Strict slot-only recruitment: scoutDay & nextDay produce 0 passive candidates
+  assert.equal(state.scoutDay(bar5).length, 0, 'scoutDay must return empty array');
+  nextDay();
+  assert.equal(state.G.lots[bAfterLoad.i].cands.length, 0, 'nextDay must never generate passive walk-in candidates');
 }
 state.G.ev.rain = true;
 ui.showBriefModal(['测试简报']);
@@ -567,7 +577,7 @@ const empties = SG.lots.filter((l) => l.kind === 'empty').slice(0, 2);
     scouts: [mkScout()],
     mkts: [mkMkt()],
     bouncers: [mkBouncer()],
-    req: { body: 'any', pers: 'any', looks: 0, att: 0 },
+    req: { body: 'any', looks: 0, att: 0 },
     cands: [],
   });
   e.ac = e.accent;

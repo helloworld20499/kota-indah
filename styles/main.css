@@ -1366,20 +1366,57 @@ select.xfer {
 }
 .clash-alert i { font-style: normal; color: var(--ink-2); }
 
-.slot-box {
-  background: #FBF4E4;
-  border: 1.5px solid var(--line-ink);
-  border-radius: 12px;
-  padding: 9px 10px;
-  box-shadow: 2px 3px 0 rgba(47, 38, 30, 0.14);
+.slot-cabinet {
+  background: linear-gradient(180deg, #FBF4E4 0%, #F1E3C6 100%);
+  border: 2px solid var(--line-ink);
+  border-radius: 13px;
+  padding: 8px 10px 10px;
+  box-shadow: 3px 4px 0 rgba(47, 38, 30, 0.18), inset 0 1px 0 #FFFDF9;
   display: flex;
   flex-direction: column;
   gap: 7px;
+  position: relative;
 }
-.slot-box.jackpot {
+.slot-cabinet.jackpot {
   border-color: #B87A14;
-  background: linear-gradient(180deg, #FFFDF5 0%, #FAECC4 100%);
+  background: linear-gradient(180deg, #FFFDF5 0%, #FAE7B4 100%);
+  box-shadow: 0 0 0 2px rgba(232, 185, 89, 0.45), 3px 4px 0 rgba(158, 98, 20, 0.25);
 }
+@keyframes antPulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(232, 185, 89, 0.55), 3px 4px 0 rgba(181, 54, 47, 0.22); }
+  50% { box-shadow: 0 0 0 5px rgba(232, 185, 89, 0.9), 3px 4px 0 rgba(181, 54, 47, 0.35); }
+}
+.slot-cabinet.anticipation {
+  border-color: #B87A14;
+  animation: antPulse 0.42s ease-in-out infinite;
+}
+
+.slot-bulbs {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 8px;
+}
+.slot-bulbs i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #DFC178;
+  border: 1px solid var(--line-ink);
+  display: block;
+}
+@keyframes bulbChase {
+  0%, 100% { background: #FFF2B2; transform: scale(1.18); box-shadow: 0 0 6px #E8B959; }
+  50% { background: #C89B3C; transform: scale(0.9); box-shadow: none; }
+}
+.slot-cabinet.is-spinning .slot-bulbs i:nth-child(odd),
+.slot-cabinet.jackpot .slot-bulbs i:nth-child(odd) {
+  animation: bulbChase 0.28s linear infinite;
+}
+.slot-cabinet.is-spinning .slot-bulbs i:nth-child(even),
+.slot-cabinet.jackpot .slot-bulbs i:nth-child(even) {
+  animation: bulbChase 0.28s linear 0.14s infinite;
+}
+
 .slot-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; }
 .slot-top b { display: block; font-size: 13px; color: var(--ink); }
 .slot-top small { display: block; font-size: 10.5px; color: var(--mute); }
@@ -1393,47 +1430,161 @@ select.xfer {
   color: var(--ink-2);
 }
 .slot-pity b { font-family: var(--mono); color: var(--gold); }
+
+.slot-stage {
+  position: relative;
+  background: #2F261E;
+  border: 1.5px solid var(--line-ink);
+  border-radius: 10px;
+  padding: 6px;
+  overflow: hidden;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.28);
+}
+.slot-payline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  margin-top: -4px;
+  background: rgba(232, 185, 89, 0.32);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+  z-index: 6;
+}
+.slot-payline span {
+  font-size: 9px;
+  line-height: 1;
+  color: #F6D55C;
+  text-shadow: 0 1px 1px #2F261E;
+}
+.slot-fx-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 10;
+}
 .slot-reels {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
+  gap: 5px;
+  position: relative;
+  z-index: 2;
 }
-@keyframes reelPulse {
-  0% { transform: translateY(-4px); opacity: 0.7; }
-  50% { transform: translateY(3px); opacity: 0.9; }
-  100% { transform: translateY(0); opacity: 1; }
+.slot-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: stretch;
 }
-.slot-reels.spinning .slot-reel:not(.locked) { animation: reelPulse 0.28s ease-out; }
-.slot-reel {
-  background: var(--card-hi);
-  border: 1.2px solid var(--line-ink);
-  border-radius: 9px;
-  padding: 6px 4px;
+.slot-col-lbl {
   text-align: center;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #E8DEC9;
+  letter-spacing: 0.04em;
+}
+.slot-window {
+  height: 82px;
+  overflow: hidden;
+  position: relative;
+  background: var(--card-hi);
+  border: 1.5px solid var(--line-ink);
+  border-radius: 7px;
+  box-shadow: inset 0 11px 10px -7px rgba(36, 28, 21, 0.3), inset 0 -11px 10px -7px rgba(36, 28, 21, 0.3);
+}
+.slot-col.locked .slot-window {
+  border-color: #E8B959;
+  background: #FFF7DE;
+  box-shadow: 0 0 0 1px #E8B959, inset 0 8px 8px -6px rgba(158, 98, 20, 0.25);
+}
+@keyframes colStopPop {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.035); border-color: #E8B959; }
+  100% { transform: scale(1); }
+}
+.slot-col.stopped .slot-window { animation: colStopPop 0.22s ease-out; }
+
+.slot-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  will-change: transform;
+}
+.slot-cell {
+  flex: 0 0 82px;
+  height: 82px;
+  box-sizing: border-box;
+  padding: 5px 4px;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  text-align: center;
   gap: 2px;
+  border-bottom: 1px dashed rgba(47, 38, 30, 0.14);
 }
-.slot-reel.locked { border-color: var(--gold); background: #FBF0CE; }
-.slot-reel.r5 { border-color: #B87A14; background: #FFF8DF; }
-.slot-reel small { font-size: 9.5px; color: var(--mute); font-weight: 600; }
-.slot-reel i { font-style: normal; font-size: 19px; line-height: 1.1; margin: 1px 0; }
-.slot-reel b { font-size: 11.5px; color: var(--ink); line-height: 1.15; }
-.slot-reel span { font-size: 10px; color: var(--mute); }
+.slot-cell.r5 { background: linear-gradient(180deg, #FFFDF2 0%, #FBF0CE 100%); }
+.slot-cell.r4 { background: #F7EFFC; }
+.slot-cell i { font-style: normal; font-size: 21px; line-height: 1.1; }
+.slot-cell b { font-size: 11.5px; color: var(--ink); line-height: 1.15; }
+.slot-cell span { font-size: 9.5px; color: var(--mute); line-height: 1.1; }
+
 .slot-lock {
-  margin-top: 3px;
   width: 100%;
   border-radius: 6px;
-  padding: 2px 4px;
+  padding: 3px 4px;
   font-size: 10px;
-  font-weight: 600;
-  background: #EFE6D4;
-  border: 1px solid var(--line);
+  font-weight: 700;
+  background: #EAE1CE;
+  border: 1px solid var(--line-ink);
   color: var(--ink-2);
 }
-.slot-lock.on { background: var(--gold); border-color: var(--line-ink); color: #FFFDF8; }
+.slot-lock.on { background: var(--gold); border-color: #FFF6D6; color: #FFFDF8; }
 .slot-lock:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.slot-lever-btn {
+  padding: 8px 12px;
+  font-size: 13px;
+  box-shadow: 0 3px 0 #7E201B;
+}
+.slot-lever-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #7E201B; }
+
+.slot-chute { min-height: 10px; }
+.slot-rolling-hint {
+  text-align: center;
+  padding: 12px 10px;
+  border-radius: 10px;
+  border: 1.2px dashed var(--gold);
+  background: #FBF4E4;
+  color: #8A530B;
+  font-weight: 600;
+  font-size: 12px;
+}
+@keyframes dispenseSlide {
+  from { opacity: 0; transform: translateY(-10px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.dispense-in { animation: dispenseSlide 0.28s cubic-bezier(0.22, 1, 0.36, 1); }
+.slot-win-banner {
+  text-align: center;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 8px 8px 0 0;
+  border: 1px solid var(--line-ink);
+  border-bottom: 0;
+  background: #EFE6D4;
+  color: var(--ink-2);
+}
+.slot-win-banner.r3 { background: #E3EEF9; color: #265385; border-color: #265385; }
+.slot-win-banner.r4 { background: #F1E6F7; color: #6B4280; border-color: #6B4280; }
+.slot-win-banner.r5 { background: #FBF0CE; color: #9E6214; border-color: #B87A14; }
+.dispense-in .card { border-top-left-radius: 0; border-top-right-radius: 0; }
 
 .voice-card {
   background: var(--card-hi);
@@ -1509,4 +1660,23 @@ select.xfer {
 @media (max-width: 520px) {
   .codex-grid { grid-template-columns: 1fr; }
   .codex-miles { grid-template-columns: repeat(2, 1fr); }
+}
+
+.h-charm-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 7px;
+  margin-top: 4px;
+}
+.h-charm-row small {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ink-2);
+  line-height: 1.1;
+}
+.type-pill.prime {
+  background: #FBF0CE;
+  color: #9E6214;
+  border-color: #D6AA55;
 }

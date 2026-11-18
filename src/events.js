@@ -142,7 +142,7 @@ const LIVE_TEMPLATES = [
           G.money += 450;
           l.today.hfee += 450;
           l.rep = Math.min(5, l.rep + 0.08);
-          G.regs.push({ id: 'rf' + Date.now(), type: 'tai', bar: l.i, n: 2, pers: 'extro', days: 3 });
+          G.regs.push({ id: 'rf' + Date.now(), type: 'tai', bar: l.i, n: 2, days: 3 });
           l.today.newRegs++;
           G.fx.push({ x: (l.x0 + l.x1) / 2, y: (l.y0 + l.y1) / 2, z: 15, t: '+450k 💎', life: 6, col: '#E8B959' });
           AU.sfx('coin-double');
@@ -243,7 +243,7 @@ const LIVE_TEMPLATES = [
         G.money += 200;
         l.today.hfee += 200;
         l.rep = Math.min(5, l.rep + 0.25);
-        G.regs.push({ id: 'wt' + Date.now(), type: 'cn', bar: l.i, n: 1, pers: 'intro', days: 5 });
+        G.regs.push({ id: 'wt' + Date.now(), type: 'cn', bar: l.i, n: 1, days: 5 });
         l.today.newRegs++;
         AU.sfx('achievement');
         toastFn(`⌚ 老板重赏 Rp 200k 并记下 ${l.name} 人情，新增熟客！`);

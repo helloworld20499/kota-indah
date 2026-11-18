@@ -23,85 +23,85 @@ export function rarityOf(h) {
 /* ---------- 2. 《雅加达女子图鉴》 — 12 Tier-5 Legendary Girls ---------- */
 export const LEGEND_GIRLS = [
   {
-    id: 'kartika', name: 'Kartika', title: '万隆落跑千金', body: 'slim', pers: 'intro',
-    looks: 10, ps: 9, att: 9, traits: ['noble', 'polyglot'], acc: 'tiara',
+    id: 'kartika', name: 'Kartika', title: '万隆落跑千金', body: 'prime',
+    looks: 10, att: 9, traits: ['noble', 'polyglot'], acc: 'tiara',
     hair: '#1f1a18', skin: '#E0B08A', dress: '#8A6FA8',
     auraCn: '全店合理酒价 +25%，客人隔夜带走意愿 +30%',
     bio: '自万隆豪门出走，自带名媛气场，端杯威士忌就能让包厢瞬间升档。',
   },
   {
-    id: 'ayu', name: 'Ayu', title: '巴厘火舞娘', body: 'curvy', pers: 'extro',
-    looks: 9, ps: 10, att: 9, traits: ['drinker', 'rowdy'], acc: 'flower',
+    id: 'ayu', name: 'Ayu', title: '巴厘火舞娘', body: 'curvy',
+    looks: 9, att: 9, traits: ['drinker', 'rowdy'], acc: 'flower',
     hair: '#2b211b', skin: '#C99670', dress: '#C8574B',
     auraCn: '全店点酒节奏 +25%，客人整体满意度 +0.6',
     bio: '曾在乌布舞台领舞，笑声一响整条卡座都跟着多开两打冰啤酒。',
   },
   {
-    id: 'meiling', name: 'Mei Ling', title: '棉兰华裔歌后', body: 'slim', pers: 'extro',
-    looks: 10, ps: 9, att: 10, traits: ['singer', 'polyglot'], acc: 'pearl',
+    id: 'meiling', name: 'Mei Ling', title: '棉兰华裔歌后', body: 'slim',
+    looks: 10, att: 10, traits: ['singer', 'polyglot'], acc: 'pearl',
     hair: '#1f1a18', skin: '#E0B08A', dress: '#B5362F',
     auraCn: '包厢钟点费 +20%，台客与中客进店率 +15%',
     bio: '粤语闽南语金曲信手拈来，是台商与华商老板最爱点的包厢王牌。',
   },
   {
-    id: 'sinta', name: 'Sinta', title: '前女团人气 C 位', body: 'slim', pers: 'extro',
-    looks: 10, ps: 9, att: 9, traits: ['diva', 'sweet'], acc: 'star',
+    id: 'sinta', name: 'Sinta', title: '前女团人气 C 位', body: 'slim',
+    looks: 10, att: 9, traits: ['diva', 'sweet'], acc: 'star',
     hair: '#3a2a20', skin: '#D7A47C', dress: '#D05A9C',
     auraCn: '本店无视暴雨客流惩罚，且进店率额外 +12%',
     bio: '退团后在雅加达夜街依旧拥有铁杆拥趸，狂风暴雨也挡不住粉丝打卡。',
   },
   {
-    id: 'nadia', name: 'Nadia', title: '北雅加达金融女郎', body: 'slim', pers: 'intro',
-    looks: 9, ps: 9, att: 9, traits: ['noble', 'gossip'], acc: 'glasses',
+    id: 'nadia', name: 'Nadia', title: '北雅加达金融女郎', body: 'slim',
+    looks: 9, att: 9, traits: ['noble', 'gossip'], acc: 'glasses',
     hair: '#2b211b', skin: '#E0B08A', dress: '#3F4A5A',
     auraCn: '精算进货渠道，本店每瓶酒进货成本直降 Rp 3k',
     bio: '白天看 K 线晚上品红酒，总能用最低的成本拿捏住最挑剔的大客户。',
   },
   {
-    id: 'dewi', name: 'Dewi', title: '唐人街雀神西施', body: 'curvy', pers: 'extro',
-    looks: 9, ps: 9, att: 10, traits: ['rowdy', 'drinker'], acc: 'jade',
+    id: 'dewi', name: 'Dewi', title: '唐人街雀神西施', body: 'curvy',
+    looks: 9, att: 10, traits: ['rowdy', 'drinker'], acc: 'jade',
     hair: '#1f1a18', skin: '#D7A47C', dress: '#3F8F7B',
     auraCn: '特色酒单触发率翻倍，每次点酒额外小费 +25k',
     bio: '划拳骰盅从无败绩，跟她拼酒输了的客人都会笑着再开一桶啤酒。',
   },
   {
-    id: 'laras', name: 'Laras', title: '电音打碟女神', body: 'slim', pers: 'extro',
-    looks: 9, ps: 10, att: 9, traits: ['diva', 'stamina'], acc: 'headset',
+    id: 'laras', name: 'Laras', title: '电音打碟女神', body: 'slim',
+    looks: 9, att: 9, traits: ['diva', 'stamina'], acc: 'headset',
     hair: '#5a3e2b', skin: '#D7A47C', dress: '#5B7FA6',
     auraCn: '自带免费驻场 DJ 效果，全店公关体力消耗 -20%',
     bio: '混音台一推就能把冷清大厅炒成狂欢舞池，连带姐妹们越夜越精神。',
   },
   {
-    id: 'putri', name: 'Putri', title: '日惹宫廷舞姬', body: 'curvy', pers: 'intro',
-    looks: 10, ps: 9, att: 10, traits: ['singer', 'sweet'], acc: 'goldpin',
+    id: 'putri', name: 'Putri', title: '日惹宫廷舞姬', body: 'curvy',
+    looks: 10, att: 10, traits: ['singer', 'sweet'], acc: 'goldpin',
     hair: '#1f1a18', skin: '#C99670', dress: '#E2B24A',
     auraCn: '全店口碑涨幅 ×1.5，极易把散客留成每日熟客',
     bio: '举手投足皆是传统爪哇典雅仪态，见过她的客人都记挂着回头再来。',
   },
   {
-    id: 'citra', name: 'Citra', title: '时尚周刊话题女王', body: 'slim', pers: 'extro',
-    looks: 10, ps: 9, att: 9, traits: ['diva', 'ace'], acc: 'star',
+    id: 'citra', name: 'Citra', title: '时尚周刊话题女王', body: 'slim',
+    looks: 10, att: 9, traits: ['diva', 'ace'], acc: 'star',
     hair: '#3a2a20', skin: '#E0B08A', dress: '#C8574B',
     auraCn: '招牌吸引力 ×1.8，黄金香槟塔触发率额外 +15%',
     bio: '只要坐在靠窗卡座，整条 Kota Indah 的街拍镜头都会对准你家门面。',
   },
   {
-    id: 'vivi', name: 'Vivi', title: '百变氛围甜心', body: 'curvy', pers: 'extro',
-    looks: 9, ps: 10, att: 10, traits: ['sweet', 'stamina'], acc: 'ribbon',
+    id: 'vivi', name: 'Vivi', title: '百变氛围甜心', body: 'curvy',
+    looks: 9, att: 10, traits: ['sweet', 'stamina'], acc: 'ribbon',
     hair: '#5a3e2b', skin: '#E0B08A', dress: '#D05A9C',
     auraCn: '客人等位耐心 +50%，钟点结束加钟续费率 +20%',
     bio: '永远记得每一位熟客爱喝几分冰，连等位的大哥都被她哄得乐呵呵。',
   },
   {
-    id: 'rina', name: 'Rina', title: '东南亚商务公关皇', body: 'curvy', pers: 'intro',
-    looks: 9, ps: 9, att: 10, traits: ['polyglot', 'ace'], acc: 'pearl',
+    id: 'rina', name: 'Rina', title: '东南亚商务公关皇', body: 'prime',
+    looks: 9, att: 10, traits: ['polyglot', 'ace'], acc: 'pearl',
     hair: '#2b211b', skin: '#C99670', dress: '#2F261E',
     auraCn: 'VIP 与金主小费 +35%，高净值客人带走买断率 +25%',
     bio: '精通三国商务酒桌礼仪，跨国大老板来雅加达谈生意指定找她撑场。',
   },
   {
-    id: 'kirana', name: 'Kirana', title: '夜街神秘大姐头', body: 'curvy', pers: 'intro',
-    looks: 9, ps: 9, att: 10, traits: ['ace', 'gossip'], acc: 'jade',
+    id: 'kirana', name: 'Kirana', title: '夜街神秘大姐头', body: 'curvy',
+    looks: 9, att: 10, traits: ['ace', 'gossip'], acc: 'jade',
     hair: '#1f1a18', skin: '#B98562', dress: '#2F261E',
     auraCn: '本店警察临检罚款 -40%，有效震慑隔壁拉客仔',
     bio: 'Kota Indah 东街西街都卖她几分薄面，她在店里坐镇就能省去无数麻烦。',
@@ -160,10 +160,10 @@ export function activeLegendAuras(l) {
 
 /* ---------- 3. Slot Machine Recruitment (Replaces Scouts) ---------- */
 export const SLOT_LEVELS = {
-  1: { lv: 1, cn: '街边旧机台', upCost: 5000, free: 2, lockAllowed: false, weights: [42, 36, 16, 5, 1], pityMax: 20, desc: '基础 2 次免费 · 4/5 等概率较低' },
-  2: { lv: 2, cn: '改装霓虹机', upCost: 14000, free: 2, lockAllowed: true, weights: [20, 36, 26, 14, 4], pityMax: 15, desc: '解锁【🔒锁轴重转】· 高等概率大涨' },
-  3: { lv: 3, cn: '贵宾猎头机', upCost: 28000, free: 3, lockAllowed: true, weights: [8, 25, 34, 24, 9], pityMax: 12, desc: '每日免费 3 次 · 5 等名花概率 9%' },
-  4: { lv: 4, cn: '黄金大亨机', upCost: 0, free: 3, lockAllowed: true, weights: [0, 0, 44, 40, 16], pityMax: 9, desc: '保底 3 等起步 · 9 抽必出 5 等传奇名花' },
+  1: { lv: 1, cn: '街边旧机台', upCost: 5000, free: 3, lockAllowed: false, weights: [42, 36, 16, 5, 1], pityMax: 20, desc: '基础 3 次免费 · 4/5 等概率较低' },
+  2: { lv: 2, cn: '改装霓虹机', upCost: 14000, free: 3, lockAllowed: true, weights: [20, 36, 26, 14, 4], pityMax: 15, desc: '解锁【🔒锁轴重转】· 高等概率大涨' },
+  3: { lv: 3, cn: '贵宾猎头机', upCost: 28000, free: 4, lockAllowed: true, weights: [8, 25, 34, 24, 9], pityMax: 12, desc: '每日免费 4 次 · 5 等名花概率 9%' },
+  4: { lv: 4, cn: '黄金大亨机', upCost: 0, free: 4, lockAllowed: true, weights: [0, 0, 44, 40, 16], pityMax: 9, desc: '保底 3 等起步 · 9 抽必出 5 等传奇名花' },
 };
 
 export const REEL_LEFT = [
@@ -175,10 +175,9 @@ export const REEL_LEFT = [
 ];
 
 export const REEL_MID = [
-  { body: 'slim', pers: 'extro', icon: '✨', cn: '苗条·外向' },
-  { body: 'slim', pers: 'intro', icon: '🌙', cn: '苗条·内向' },
-  { body: 'curvy', pers: 'extro', icon: '🔥', cn: '丰满·外向' },
-  { body: 'curvy', pers: 'intro', icon: '🍷', cn: '丰满·内向' },
+  { body: 'slim', icon: '✨', cn: '苗条身姿', sub: '台客偏爱' },
+  { body: 'curvy', icon: '🔥', cn: '丰满风情', sub: '土客偏爱' },
+  { body: 'prime', icon: '💎', cn: '黄金身段', sub: '全客通吃!' },
 ];
 
 export const REEL_RIGHT = TRAIT_KEYS.map((id) => ({
@@ -187,6 +186,27 @@ export const REEL_RIGHT = TRAIT_KEYS.map((id) => ({
   col: TRAITS[id].col,
   desc: TRAITS[id].desc,
 }));
+
+export const ALL_REEL_SYMBOLS = [REEL_LEFT, REEL_MID, REEL_RIGHT];
+
+export function formatReelItem(colIdx, itemIdx) {
+  if (colIdx === 0) {
+    const it = REEL_LEFT[itemIdx] || REEL_LEFT[0];
+    return { icon: it.icon, title: it.cn, sub: it.sub, cls: `r${it.r}`, color: '' };
+  }
+  if (colIdx === 1) {
+    const it = REEL_MID[itemIdx] || REEL_MID[0];
+    return {
+      icon: it.icon,
+      title: it.cn,
+      sub: it.sub,
+      cls: it.body === 'prime' ? 'r5' : '',
+      color: it.body === 'prime' ? '#9E6214' : '',
+    };
+  }
+  const it = REEL_RIGHT[itemIdx] || REEL_RIGHT[0];
+  return { icon: '✨', title: it.cn, sub: '阵容羁绊', cls: '', color: it.col || '' };
+}
 
 export function createInitialSlot(codexGirls) {
   const extra = girlMilestoneBonuses(codexGirls).extraFreeSpin;
@@ -249,9 +269,7 @@ export function instantiateLegendGirl(lg) {
     rarity: 5,
     name: lg.name,
     body: lg.body,
-    pers: lg.pers,
     looks: lg.looks,
-    ps: lg.ps,
     att: lg.att,
     hair: lg.hair,
     skin: lg.skin,
@@ -330,7 +348,10 @@ export function spinSlotMachine(G, targetBar, payFn, toastFn, confettiFn) {
   } else if (!s.locks[0]) {
     s.reels[0] = pickWeightedTier(def.weights, boostHigh) - 1;
   }
-  if (!s.locks[1]) s.reels[1] = (R() * REEL_MID.length) | 0;
+  if (!s.locks[1]) {
+    const rMid = R() * 100;
+    s.reels[1] = rMid < 43 ? 0 : rMid < 86 ? 1 : 2;
+  }
   if (!s.locks[2]) s.reels[2] = (R() * REEL_RIGHT.length) | 0;
 
   let tier = clamp((s.reels[0] || 0) + 1, 1, 5);
@@ -383,9 +404,7 @@ export function spinSlotMachine(G, targetBar, payFn, toastFn, confettiFn) {
       rarity: tier,
       name: pick(namePool.length ? namePool : HNAMES),
       body: mid.body,
-      pers: mid.pers,
       looks: rollStat(),
-      ps: rollStat(),
       att: rollStat(),
       hair: pick(HAIRS),
       skin: pick(SKINS),
@@ -457,7 +476,8 @@ export function evalBarSynergy(l) {
 
   for (let i = 0; i < active.length; i++) {
     const h = active[i];
-    if (h.body === 'slim') slim++;
+    if (h.body === 'prime') { slim++; curvy++; }
+    else if (h.body === 'slim') slim++;
     else curvy++;
     const ts = h.traits || [];
     for (let j = 0; j < ts.length; j++) {

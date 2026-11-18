@@ -1,7 +1,7 @@
 import {
   BARPAL, COGS, COMM, CONCEPTS, CT, FEE, GOALS, GX, HAIRS, HOURFEE, Lw, NEWBARS,
   PKG, ROOMS, SKINS, SX, T0, T_END, T_LAST, T_NEXT_OPEN, T_OPEN, T_RIVAL, TIER, TIERB, WD, WMUL,
-  YA, YB, MIN_SEC, R, activeH, clamp, effAtt, esc, fm, makePkg, onDuty, pick, rnd, tierOf, uid, wday, where,
+  YA, YB, MIN_SEC, R, activeH, bodyMatches, clamp, effAtt, esc, fm, makePkg, onDuty, pick, rnd, tierOf, uid, wday, where,
 } from './config.js';
 import { AU, dayTrack } from './audio.js';
 import {
@@ -88,7 +88,7 @@ export function enterProb(l, ct) {
   let match = 0;
   let aceBonus = 0;
   for (let i = 0; i < hs.length; i++) {
-    if (CT[ct].body === 'any' || hs[i].body === CT[ct].body) match++;
+    if (bodyMatches(hs[i].body, CT[ct].body)) match++;
     if (hasTrait(hs[i], 'ace')) aceBonus += 0.06;
     if (hasTrait(hs[i], 'diva') && !syn.mods.twoQueensClash) aceBonus += 0.05;
     if (ct === 'local' && hasTrait(hs[i], 'rowdy') && !syn.mods.disableNobleRowdy) aceBonus += 0.03;
@@ -183,12 +183,11 @@ export function checkGoals() {
 export function choiceScore(p, h, l = null) {
   const syn = l ? evalBarSynergy(l) : null;
   const wantBody = CT[p.ctype].body;
-  const bodyMod = wantBody === 'any' ? 0.8 : h.body === wantBody ? 1.8 : -2.2;
-  const persScore = h.pers === p.prefPers ? h.ps : h.ps * 0.45;
+  const bodyMod = h.body === 'prime' ? 2.1 : wantBody === 'any' ? 0.8 : h.body === wantBody ? 1.8 : -2.2;
   const poly = hasTrait(h, 'polyglot') && (p.ctype === 'tai' || p.ctype === 'cn') ? 1.2 : 0;
   const noble = hasTrait(h, 'noble') && !syn?.mods?.disableNobleRowdy && (p.ctype === 'tai' || p.ctype === 'cn') ? 1.2 : 0;
   const balance = syn?.mods?.choiceBonus || 0;
-  return 0.62 * h.looks + 0.38 * persScore + bodyMod + (h.pop != null ? TIERB[tierOf(h)] : 0) + poly + noble + balance;
+  return 0.9 * h.looks + bodyMod + (h.pop != null ? TIERB[tierOf(h)] : 0) + poly + noble + balance;
 }
 
 export function finalSat(p, h, l) {
@@ -217,10 +216,9 @@ export function choosePkg(p, c, l, h = null) {
   const maxHours = Math.max(1, (T_NEXT_OPEN - G.t) / 60);
   const maxPaid = Math.max(1, Math.ceil((Math.floor(maxHours) + 1) / 2));
   const wantBody = CT[p.ctype].body;
-  const bodyWish = wantBody === 'any' ? 0.6 : h && h.body === wantBody ? 1.0 : -0.8;
-  const persWish = h && h.pers === p.prefPers ? 0.8 : 0;
+  const bodyWish = h && h.body === 'prime' ? 1.5 : wantBody === 'any' ? 0.6 : h && h.body === wantBody ? 1.1 : -0.8;
   const attFactor = h ? (effAtt(h) - 5) * 0.18 : 0;
-  const wish = c + bodyWish + persWish + attFactor;
+  const wish = c + bodyWish + attFactor;
   const norm = clamp((wish - 4.2) / 7.8, 0, 1.15);
   const typeMul = p.ctype === 'local' ? 0.68 : p.ctype === 'tai' ? 1.08 : 1.18;
   const allBoost = conceptOf(l).allInMul || 1;
@@ -261,7 +259,6 @@ export function mkPed(route, ct, extra) {
       st: 'walk',
       ph: R() * 6,
       ctype: ct,
-      prefPers: R() < 0.5 ? 'intro' : 'extro',
       shirt: pick(t.shirts),
       hair: pick(HAIRS),
       skin: pick(SKINS),
@@ -487,7 +484,7 @@ export function spawnReg(r) {
   for (let i = 0; i < r.n; i++) {
     const rt = route.map((q) => q.slice());
     rt[0][1] += 0.7 * i;
-    const p = mkPed(rt, r.type, { gid, sp, reg: r, prefPers: r.pers, thirst: 1.2 });
+    const p = mkPed(rt, r.type, { gid, sp, reg: r, thirst: 1.2 });
     G.peds.push(p);
     registerGroupPed(p);
   }
@@ -957,7 +954,7 @@ function vipDecide(p, l) {
   }
   v.done = true;
   const ok = l.hostesses
-    .filter((h) => h.state === 'idle' && onDuty(h) && !h.hidden && h.en >= 10 && (v.body === 'any' || h.body === v.body) && (v.pers === 'any' || h.pers === v.pers))
+    .filter((h) => h.state === 'idle' && onDuty(h) && !h.hidden && h.en >= 10 && bodyMatches(h.body, v.body))
     .sort((a, b) => choiceScore(p, b, l) - choiceScore(p, a, l));
   if (ok.length >= v.n) {
     const maxH = Math.max(1, (T_NEXT_OPEN - G.t) / 60);
@@ -1013,7 +1010,7 @@ export function review(p, h, l, s) {
   if (p.ctype === 'local') {
     if (p.reg && s < 4.8) G.regs = G.regs.filter((r) => r !== p.reg);
     else if (!p.reg && s >= 5.3 - 0.05 * mp - sweetB - achB) {
-      G.regs.push({ id: uid(), type: 'local', bar: l.i, n: 1, pers: p.prefPers, daily: true, pr: Math.min(0.85, 0.45 + 0.03 * mp), hid: h.id });
+      G.regs.push({ id: uid(), type: 'local', bar: l.i, n: 1, daily: true, pr: Math.min(0.85, 0.45 + 0.03 * mp), hid: h.id });
       l.today.newRegs++;
     } else if (p.reg) p.reg.hid = h.id;
   } else if (!p.reg && s >= 5.8 - 0.08 * mp - sweetB - achB) {
@@ -1021,7 +1018,7 @@ export function review(p, h, l, s) {
     if (!G.regs.some((r) => r.id === key)) {
       const n = p.gid ? (GROUPS.get(p.gid)?.length || 2) : 1;
       const baseDays = p.ctype === 'tai' ? 2 + (R() < 0.5 ? 1 : 0) : 6 + (R() < 0.5 ? 1 : 0);
-      G.regs.push({ id: key, type: p.ctype, bar: l.i, n, pers: p.prefPers, days: baseDays + wPerk.regExtraDays, hid: h.id });
+      G.regs.push({ id: key, type: p.ctype, bar: l.i, n, days: baseDays + wPerk.regExtraDays, hid: h.id });
       l.today.newRegs++;
     }
   } else if (p.reg) p.reg.hid = h.id;
@@ -1789,7 +1786,6 @@ export function morning() {
       bar: l.i,
       n: 3 + ((R() * 4) | 0),
       body: tp === 'tai' ? 'slim' : tp === 'cn' ? 'any' : 'curvy',
-      pers: R() < 0.4 ? pick(['intro', 'extro']) : 'any',
       type: tp,
       at: rnd(21, 22.5) * 60,
       who: tp === 'tai' ? '台湾老板一行' : '中国老板一行',
@@ -1832,7 +1828,7 @@ export function nextDay() {
     bouncers: [mkBouncer(), mkBouncer()],
   };
   bars().forEach((l) => {
-    l.cands = scoutDay(l);
+    l.cands = [];
   });
   const v = G.view;
   save();
@@ -1894,7 +1890,7 @@ export function simHeadlessDays(days = 7) {
         scouts: [mkScout()],
         mkts: [mkMkt()],
         bouncers: [mkBouncer()],
-        req: { body: 'any', pers: 'any', looks: 0, att: 0 },
+        req: { body: 'any', looks: 0, att: 0 },
         cands: [],
       });
       G.mine[empty.i] = empty;

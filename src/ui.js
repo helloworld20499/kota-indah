@@ -1,11 +1,11 @@
 import {
-  ACHIEVEMENTS, BODY, COGS, CONCEPTS, CT, FEE, GOALS, MAXH, PERS, ROOMS, SKILLS, SKINS, SPECIAL_MENU,
+  ACHIEVEMENTS, BODY, COGS, CONCEPTS, CT, FEE, GOALS, MAXH, ROOMS, SKILLS, SKINS, SPECIAL_MENU,
   T0, T_END, T_OPEN, TIER, TRAITS, UPG, WD, WMUL, activeH, clamp, esc, fm, fmShort, onDuty, tierOf, wday, where,
 } from './config.js';
 import {
-  GIRL_MILESTONES, LEGEND_GIRLS, LEGEND_MAP, RARITY_TIERS, REEL_LEFT, REEL_MID, REEL_RIGHT,
-  SLOT_LEVELS, WHALES, barMatchedWhales, evalBarSynergy, girlMilestoneBonuses, rarityOf,
-  slotLockCost, spinCost, whalePerkBonuses,
+  ALL_REEL_SYMBOLS, GIRL_MILESTONES, LEGEND_GIRLS, LEGEND_MAP, RARITY_TIERS, REEL_LEFT,
+  REEL_MID, REEL_RIGHT, SLOT_LEVELS, WHALES, barMatchedWhales, evalBarSynergy, formatReelItem,
+  girlMilestoneBonuses, rarityOf, slotLockCost, spinCost, whalePerkBonuses,
 } from './codex.js';
 import { G, bars, cap } from './state.js';
 import { buyoutCost, rivalIntel } from './economy.js';
@@ -132,14 +132,12 @@ function hCard(h, cand, curBar) {
     ? `<button class="btn pri mini" style="margin:0;padding:3px 10px" data-a="hirePending">✨ 签约入店</button>`
     : `<button class="btn pri mini" style="margin:0;padding:3px 10px" data-a="hireH" data-v="${cand}">签约聘用</button>`;
 
+  const bodyLbl = h.body === 'prime' ? `💎 ${BODY[h.body]}` : BODY[h.body];
   return `<div class="card hc compact${off ? ' off' : ''}${rSpec.r === 5 ? ' legend' : ''}"><div class="hrow">${avatar(h, 34)}<div class="hmain">
-    <h5><span>${esc(h.name)}<span class="r-badge r${rSpec.r}">${rSpec.short}</span><span class="type-pill">${BODY[h.body]}</span>${t ? `<span class="badge b${t}">${TIER[t]}</span>` : ''}${h.sick ? '<span class="badge boff">病假</span>' : ''}${shielded ? '<span class="shield-badge" title="防挖角护盾">🛡️</span>' : ''}${traitBadges(h)}</span>
+    <h5><span>${esc(h.name)}<span class="r-badge r${rSpec.r}">${rSpec.short}</span><span class="type-pill${h.body === 'prime' ? ' prime' : ''}">${bodyLbl}</span>${t ? `<span class="badge b${t}">${TIER[t]}</span>` : ''}${h.sick ? '<span class="badge boff">病假</span>' : ''}${shielded ? '<span class="shield-badge" title="防挖角护盾">🛡️</span>' : ''}${traitBadges(h)}</span>
       <em${cand || off ? '' : ` data-live="h:${h.id}"`}>${cand ? `${fmShort(h.wage)}/晚` : off ? '休息中' : hStatus(h)}</em></h5>
     ${leg ? `<div class="legend-aura">👑 ${esc(leg.title)} · ${esc(leg.auraCn)}</div>` : ''}
-    <div class="h-bars-2">
-      <div class="h-bar-cell"><small>样貌</small>${vbar(h.looks * 10, 'purple')}</div>
-      <div class="h-bar-cell"><small>${PERS[h.pers]}</small>${vbar(h.ps * 10, 'sky')}</div>
-    </div>
+    <div class="h-charm-row"><small>魅力</small>${vbar(h.looks * 10, 'purple')}</div>
     ${cand
       ? `<div class="hb">${hireBtn}</div>`
       : `<div class="h-bars-3">
@@ -213,6 +211,12 @@ export function renderHistoryChart() {
       return `<div class="hist-col" title="第${x.day}天 ${fm(val)}"><span class="hist-val">${fmShort(val)}</span><div class="hist-bar${val < 0 ? ' neg' : ''}" style="height:${Math.round(pct * 0.56)}%"></div><small>${x.wd.slice(1)}</small></div>`;
     })
     .join('')}</div>`;
+}
+
+export function renderSlotCell(colIdx, itemIdx) {
+  const it = formatReelItem(colIdx, itemIdx);
+  const titleStyle = it.color ? ` style="color:${it.color}"` : '';
+  return `<div class="slot-cell ${it.cls}"><i>${it.icon}</i><b${titleStyle}>${esc(it.title)}</b><span>${esc(it.sub)}</span></div>`;
 }
 
 export function renderPanel() {
@@ -305,31 +309,21 @@ export function renderPanel() {
           </div>`;
         }).join('')}</div>`;
     } else if (tab === 'girls') {
-      if (!l.hostesses.length && l.cands.length && G._girlSubAuto !== l.i) {
-        G.girlSub = 'cands';
-        G._girlSubAuto = l.i;
-      }
-      const gSub = G.girlSub || 'roster';
       const base = act.reduce((a, x) => a + x.wage, 0);
       const m = trafMul();
+      const syn = evalBarSynergy(l);
+      const lured = barMatchedWhales(l, G);
 
-      h += `<div class="subtabs compact">
-          <button class="${gSub === 'roster' ? 'on' : ''}" data-a="girlSub" data-v="roster">在岗 (${l.hostesses.length}/${MAXH})</button>
-          <button class="${gSub === 'cands' ? 'on' : ''}" data-a="girlSub" data-v="cands">应聘 (${l.cands.length})</button>
-        </div>
-        <div class="hb" style="justify-content:space-between;margin:0">
-          <span class="num" style="font-size:11px;color:var(--ink-2)">在岗 ${act.length} · 薪 ${fmShort(base)} · 客流 ${m.toFixed(1)}×</span>
+      h += `<div class="hb" style="justify-content:space-between;margin:0">
+          <span class="num" style="font-size:11px;color:var(--ink-2)">在岗 ${act.length}/${l.hostesses.length} · 薪 ${fmShort(base)} · 客流 ${m.toFixed(1)}×</span>
           <span style="display:flex;gap:4px">
+            <button class="tog" data-a="tab" data-v="scout">🎰 摇人</button>
             <button class="tog on" data-a="preset" data-v="smart">智能</button>
             <button class="tog" data-a="preset" data-v="rush">全上</button>
             <button class="tog" data-a="preset" data-v="rest">轮休</button>
           </span>
-        </div>`;
-
-      if (gSub === 'roster') {
-        const syn = evalBarSynergy(l);
-        const lured = barMatchedWhales(l, G);
-        h += `<div class="syn-box">
+        </div>
+        <div class="syn-box">
           <div class="syn-head"><b>今夜阵容化学反应</b><button class="btn-x" data-a="openCodex">📖 图鉴线索</button></div>
           <div class="syn-pills">${
             syn.synergies.length
@@ -339,62 +333,71 @@ export function renderPanel() {
           ${lured.length ? `<div class="syn-lure">🎩 可吸引金主：${lured.map((w) => `${w.title}·${w.name}`).join('、')}</div>` : ''}
           ${syn.clashes.map((c) => `<div class="clash-alert"><b>${c.icon} ${esc(c.cn)}</b>：${esc(c.desc)} · <i>${esc(c.fix)}</i></div>`).join('')}
         </div>`;
-        if (!l.hostesses.length) h += `<div class="card"><p>暂无公关，点上方「应聘」或「🎰 摇人」招募。</p></div>`;
-        l.hostesses.slice().sort((a, b) => onDuty(b) - onDuty(a) || rarityOf(b).r - rarityOf(a).r || b.pop - a.pop).forEach((x) => { h += hCard(x, null, l); });
-      } else {
-        if (!l.cands.length) h += `<div class="card"><p>今日暂无新人，可切去「🎰 摇人」用招募机抽取。</p></div>`;
-        l.cands.forEach((c, i) => { h += hCard(c, String(i), l); });
+      if (!l.hostesses.length) {
+        h += `<div class="card"><p>店内暂无公关，所有公关均须通过「🎰 摇人」抽取签约。</p><button class="btn pri mini" data-a="tab" data-v="scout">🎰 前往摇人招募 →</button></div>`;
       }
+      l.hostesses.slice().sort((a, b) => onDuty(b) - onDuty(a) || rarityOf(b).r - rarityOf(a).r || b.pop - a.pop).forEach((x) => { h += hCard(x, null, l); });
     } else if (tab === 'scout') {
       const sl = G.slot;
       const sDef = SLOT_LEVELS[sl.lv] || SLOT_LEVELS[1];
       const cost = spinCost(sl, G.codexWhales);
-      const r0 = REEL_LEFT[sl.reels[0]] || REEL_LEFT[0];
-      const r1 = REEL_MID[sl.reels[1]] || REEL_MID[0];
-      const r2 = REEL_RIGHT[sl.reels[2]] || REEL_RIGHT[0];
+      const spinning = !!G._slotSpinning;
       const lockCost = slotLockCost(G.codexWhales);
       const pityPct = clamp(Math.round((sl.pity / sDef.pityMax) * 100), 4, 100);
       const spinLabel = sl.freeLeft > 0
         ? `🎰 拉杆摇人 · 免费(${sl.freeLeft})${cost.lockFee ? ` + 锁轴${fmShort(cost.lockFee)}` : ''}`
         : `🎰 拉杆摇人 · ${fmShort(cost.total)}`;
+      const colLabels = ['出身品级', '体态风情', '天生Buff'];
+      const pTier = sl.pending ? rarityOf(sl.pending).r : ((sl.reels[0] || 0) + 1);
+      const winMsg = pTier >= 5
+        ? '🌟 JACKPOT！5等传奇名花降临！'
+        : pTier === 4
+          ? '👑 大奖！4等镇店头牌！'
+          : pTier === 3
+            ? '💃 喜获 3等人气红牌！'
+            : `✨ 摇出 ${rarityOf(sl.pending).short} 候选`;
 
-      h += `<div class="slot-box${sl.lastJackpot ? ' jackpot' : ''}">
+      h += `<div class="slot-cabinet tier-${pTier}${spinning ? ' is-spinning' : ''}${!spinning && sl.lastJackpot ? ' jackpot' : ''}">
+        <div class="slot-bulbs" aria-hidden="true">${Array.from({ length: 10 }, () => '<i></i>').join('')}</div>
         <div class="slot-top">
           <div><b>🎰 Lv.${sl.lv} ${sDef.cn}</b><small>${sDef.desc}</small></div>
           <div class="slot-top-acts">
             <button class="btn-x" data-a="openCodex">📖 图鉴</button>
-            ${sl.lv < 4 ? `<button class="tog on" data-a="slotUp">升级 ${fmShort(sDef.upCost)}</button>` : `<span class="badge b2">满级</span>`}
+            ${sl.lv < 4 ? `<button class="tog on" data-a="slotUp" ${spinning ? 'disabled' : ''}>升级 ${fmShort(sDef.upCost)}</button>` : `<span class="badge b2">满级</span>`}
           </div>
         </div>
         <div class="slot-pity">
           <span>🌟 5等名花保底 <b>${sl.pity}/${sDef.pityMax}</b></span>
           <span class="vbar"><i class="gold" style="width:${pityPct}%"></i></span>
         </div>
-        <div class="slot-reels">
-          <div class="slot-reel r${r0.r}${sl.locks[0] ? ' locked' : ''}">
-            <small>出身品级</small><i>${r0.icon}</i><b>${r0.cn}</b><span>${r0.sub}</span>
-            <button class="slot-lock${sl.locks[0] ? ' on' : ''}" data-a="slotLock" data-v="0" ${sDef.lockAllowed ? '' : 'disabled'}>${sl.locks[0] ? '🔒 已锁' : sDef.lockAllowed ? `🔓 锁(${fmShort(lockCost)})` : 'Lv.2解锁'}</button>
-          </div>
-          <div class="slot-reel${sl.locks[1] ? ' locked' : ''}">
-            <small>身材性格</small><i>${r1.icon}</i><b>${r1.cn}</b><span>匹配客群</span>
-            <button class="slot-lock${sl.locks[1] ? ' on' : ''}" data-a="slotLock" data-v="1" ${sDef.lockAllowed ? '' : 'disabled'}>${sl.locks[1] ? '🔒 已锁' : sDef.lockAllowed ? `🔓 锁(${fmShort(lockCost)})` : 'Lv.2解锁'}</button>
-          </div>
-          <div class="slot-reel${sl.locks[2] ? ' locked' : ''}">
-            <small>天生Buff</small><i>✨</i><b style="color:${r2.col}">${r2.cn}</b><span>阵容羁绊</span>
-            <button class="slot-lock${sl.locks[2] ? ' on' : ''}" data-a="slotLock" data-v="2" ${sDef.lockAllowed ? '' : 'disabled'}>${sl.locks[2] ? '🔒 已锁' : sDef.lockAllowed ? `🔓 锁(${fmShort(lockCost)})` : 'Lv.2解锁'}</button>
+        <div class="slot-stage">
+          <div class="slot-payline" aria-hidden="true"><span>▶</span><span>◀</span></div>
+          <canvas id="slotFxCanvas" class="slot-fx-canvas"></canvas>
+          <div class="slot-reels">
+            ${[0, 1, 2].map((idx) => `<div class="slot-col${sl.locks[idx] ? ' locked' : ''}" id="slotCol${idx}">
+              <small class="slot-col-lbl">${colLabels[idx]}</small>
+              <div class="slot-window">
+                <div class="slot-strip" id="reelStrip${idx}">${renderSlotCell(idx, sl.reels[idx] || 0)}</div>
+              </div>
+              <button class="slot-lock${sl.locks[idx] ? ' on' : ''}" data-a="slotLock" data-v="${idx}" ${sDef.lockAllowed && !spinning ? '' : 'disabled'}>${sl.locks[idx] ? '🔒 已锁' : sDef.lockAllowed ? `🔓 锁(${fmShort(lockCost)})` : 'Lv.2解锁'}</button>
+            </div>`).join('')}
           </div>
         </div>
-        <button class="btn pri" data-a="slotSpin">${spinLabel}</button>
+        <div class="slot-lever-row">
+          <button class="btn pri slot-lever-btn" data-a="slotSpin">${spinning ? '⏩ 点击跳过动画' : spinLabel}</button>
+        </div>
       </div>`;
 
-      if (sl.pending) {
-        h += `<div class="lbl"><span>✨ 本次摇出候选（点击签约入当前门店）</span><span>可先重摇覆盖</span></div>`;
-        h += hCard(sl.pending, 'slot', l);
+      h += `<div class="slot-chute">`;
+      if (spinning) {
+        h += `<div class="slot-rolling-hint">🎰 转轴飞速旋转中，祝你好运…</div>`;
+      } else if (sl.pending) {
+        h += `<div class="dispense-in">
+          <div class="slot-win-banner r${pTier}">${winMsg}</div>
+          ${hCard(sl.pending, 'slot', l)}
+        </div>`;
       }
-      if (l.cands && l.cands.length) {
-        h += `<div class="lbl"><span>门外待聘新人</span><span>${l.cands.length}人</span></div>`;
-        l.cands.forEach((c, i) => { h += hCard(c, String(i), l); });
-      }
+      h += `</div>`;
     } else {
       const bnc = l.bouncers || [];
       const shieldPct = bnc.length >= 2 ? 90 : bnc.length === 1 ? 55 : 0;
@@ -452,7 +455,7 @@ export function renderPanel() {
             <div class="kv"><span>周流</span><span>${fmShort(intel.wkRev)}</span></div>
           </div>
           <div class="grid-2" style="margin-top:6px">
-            <button class="btn mini" style="margin:0" data-a="poach" data-v="${v.i}" ${G.poachedToday || !bs.length ? 'disabled' : ''}>${G.poachedToday ? '今日已挖' : `🕵️ 挖角 ${fmShort(2500)}`}</button>
+            <button class="btn mini" style="margin:0" data-a="poach" data-v="${v.i}" ${G.poachedToday || !bs.length ? 'disabled' : ''}>${G.poachedToday ? '今日已挖' : `🕵️ 挖渠道 ${fmShort(2500)}`}</button>
             <button class="btn pri mini" style="margin:0" data-a="buyout" data-v="${v.i}" ${canBuy ? '' : 'disabled'}>${canBuy ? `🦈 收购 ${fmShort(bCost)}` : `🔒 前3收购`}</button>
           </div>
         </div>`;
@@ -609,7 +612,7 @@ export function showCodexModal(codexTab = G?._codexTab || 'girls') {
         </div>`;
       }
       return `<div class="codex-card ok">
-        <div class="cc-top">${avatar(Object.assign({}, lg, { rarity: 5, pop: 100 }), 36)}<div><b>${esc(lg.name)} <span class="r-badge r5">5等·名花</span></b><small>${esc(lg.title)} · ${BODY[lg.body]}·${PERS[lg.pers]}</small></div></div>
+        <div class="cc-top">${avatar(Object.assign({}, lg, { rarity: 5, pop: 100 }), 36)}<div><b>${esc(lg.name)} <span class="r-badge r5">5等·名花</span></b><small>${esc(lg.title)} · ${BODY[lg.body]}</small></div></div>
         <div class="cc-traits">${lg.traits.map((tid) => `<span class="trait-pill" style="color:${TRAITS[tid].col}">${TRAITS[tid].cn}</span>`).join('')}</div>
         <div class="cc-aura">✨ ${esc(lg.auraCn)}</div>
         <p class="cc-bio">${esc(lg.bio)}</p>

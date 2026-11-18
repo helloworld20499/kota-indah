@@ -14,6 +14,9 @@ function createAudioEngine() {
     return {
       sfx() {},
       music() {},
+      slotTick() {},
+      reelStop() {},
+      slotWin() {},
       setM(v) { st.m = v; },
       setS(v) { st.s = v; },
       get m() { return st.m; },
@@ -143,6 +146,67 @@ function createAudioEngine() {
     if (want) music(want);
   }
 
+  let actx = null;
+  function getCtx() {
+    if (!st.s || !unlocked || document.hidden) return null;
+    if (!actx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      try { actx = new AC(); } catch (_) { return null; }
+    }
+    if (actx.state === 'suspended') actx.resume().catch(() => {});
+    return actx;
+  }
+
+  function tone(freq0, freq1, durSec, gainVal = 0.08, type = 'triangle', delay = 0) {
+    const c = getCtx();
+    if (!c) return;
+    const t = c.currentTime + delay;
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq0, t);
+    if (freq1 && freq1 !== freq0) osc.frequency.exponentialRampToValueAtTime(freq1, t + durSec);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(gainVal, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + durSec);
+    osc.connect(g);
+    g.connect(c.destination);
+    osc.start(t);
+    osc.stop(t + durSec + 0.01);
+  }
+
+  function slotTick(step = 0) {
+    const f = 520 + (step % 5) * 45;
+    tone(f, 220, 0.028, 0.055, 'triangle');
+  }
+
+  function reelStop(reelIdx = 0, rarity = 2) {
+    const base = rarity >= 4 ? [440, 554.37, 659.25] : [329.63, 415.3, 523.25];
+    const f = base[reelIdx % 3];
+    tone(140, 62, 0.06, 0.11, 'sine');
+    tone(f, f * 1.02, 0.12, rarity >= 4 ? 0.1 : 0.075, 'triangle', 0.015);
+  }
+
+  function slotWin(rarity = 2) {
+    if (rarity >= 5) {
+      [523.25, 659.25, 783.99, 1046.5, 1318.5, 1567.98].forEach((n, i) => {
+        tone(n, n, 0.18, 0.1, 'triangle', i * 0.065);
+      });
+      sfx('achievement');
+      setTimeout(() => sfx('coin-double'), 220);
+    } else if (rarity === 4) {
+      [523.25, 659.25, 783.99, 1046.5].forEach((n, i) => {
+        tone(n, n, 0.14, 0.085, 'triangle', i * 0.06);
+      });
+      sfx('level-up');
+    } else if (rarity === 3) {
+      tone(587.33, 587.33, 0.12, 0.07, 'triangle', 0);
+      tone(880, 880, 0.16, 0.08, 'triangle', 0.07);
+      sfx('coin-collect');
+    }
+  }
+
   ['pointerdown', 'keydown'].forEach((ev) => window.addEventListener(ev, unlock, { once: false, capture: true }));
   document.addEventListener('visibilitychange', () => {
     if (!cur) return;
@@ -174,6 +238,9 @@ function createAudioEngine() {
   return {
     sfx,
     music,
+    slotTick,
+    reelStop,
+    slotWin,
     setM,
     setS,
     get m() { return st.m; },

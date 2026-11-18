@@ -1,7 +1,7 @@
 import {
   BARPAL, COGS, COMM, CONCEPTS, CT, FEE, GOALS, GX, HAIRS, HOURFEE, Lw, NEWBARS,
-  PKG, ROOMS, SKINS, SX, T0, T_END, T_LAST, T_OPEN, T_RIVAL, TIER, TIERB, WD, WMUL,
-  YA, YB, MIN_SEC, R, activeH, clamp, effAtt, esc, fm, onDuty, pick, rnd, tierOf, uid, wday, where,
+  PKG, ROOMS, SKINS, SX, T0, T_END, T_LAST, T_NEXT_OPEN, T_OPEN, T_RIVAL, TIER, TIERB, WD, WMUL,
+  YA, YB, MIN_SEC, R, activeH, clamp, effAtt, esc, fm, makePkg, onDuty, pick, rnd, tierOf, uid, wday, where,
 } from './config.js';
 import { AU, dayTrack } from './audio.js';
 import {
@@ -66,11 +66,11 @@ export const priceF = (l) => clamp(1.6 - (0.8 * l.price) / fair(l), 0.08, 1.3);
 export function enterProb(l, ct) {
   if (skillActive(l, 'lowProfile')) return 0;
   if (G.t < (l.lockUntil || 0)) return 0;
-  const hs = l.hostesses.filter((h) => onDuty(h) && h.state !== 'gone');
+  const hs = l.hostesses.filter((h) => onDuty(h) && !(h.state === 'out' && h.until >= T_END - 10));
   let match = 0;
   let aceBonus = 0;
   for (let i = 0; i < hs.length; i++) {
-    if (hs[i].body === CT[ct].body) match++;
+    if (CT[ct].body === 'any' || hs[i].body === CT[ct].body) match++;
     if (hasTrait(hs[i], 'ace')) aceBonus += 0.06;
   }
   const appeal = hs.length ? 1 + 0.05 * Math.min(8, match) : 0.5;
@@ -150,10 +150,11 @@ export function checkGoals() {
 }
 
 export function choiceScore(p, h) {
-  const body = h.body === CT[p.ctype].body ? h.bs : h.bs * 0.45;
-  const pers = h.pers === p.prefPers ? h.ps : h.ps * 0.5;
-  const poly = hasTrait(h, 'polyglot') && (p.ctype === 'tai' || p.ctype === 'cn') ? 1.4 : 0;
-  return 0.4 * body + 0.35 * h.looks + 0.25 * pers + (h.pop != null ? TIERB[tierOf(h)] : 0) + poly;
+  const wantBody = CT[p.ctype].body;
+  const bodyMod = wantBody === 'any' ? 0.8 : h.body === wantBody ? 1.8 : -2.2;
+  const persScore = h.pers === p.prefPers ? h.ps : h.ps * 0.45;
+  const poly = hasTrait(h, 'polyglot') && (p.ctype === 'tai' || p.ctype === 'cn') ? 1.2 : 0;
+  return 0.62 * h.looks + 0.38 * persScore + bodyMod + (h.pop != null ? TIERB[tierOf(h)] : 0) + poly;
 }
 
 export function finalSat(p, h, l) {
@@ -166,16 +167,20 @@ export function finalSat(p, h, l) {
   );
 }
 
-export function choosePkg(p, c, l) {
-  const r = R();
-  const late = T_END - G.t < 200;
-  let k;
+export function choosePkg(p, c, l, h = null) {
+  const maxHours = Math.max(1, (T_NEXT_OPEN - G.t) / 60);
+  const maxPaid = Math.max(1, Math.ceil((Math.floor(maxHours) + 1) / 2));
+  const wantBody = CT[p.ctype].body;
+  const bodyWish = wantBody === 'any' ? 0.6 : h && h.body === wantBody ? 1.0 : -0.8;
+  const persWish = h && h.pers === p.prefPers ? 0.8 : 0;
+  const attFactor = h ? (effAtt(h) - 5) * 0.18 : 0;
+  const wish = c + bodyWish + persWish + attFactor;
+  const norm = clamp((wish - 4.2) / 7.8, 0, 1.15);
+  const typeMul = p.ctype === 'local' ? 0.68 : p.ctype === 'tai' ? 1.08 : 1.18;
   const allBoost = conceptOf(l).allInMul || 1;
-  if (p.ctype === 'local') k = c < 6 ? 'h1' : c < 7.5 ? (r < 0.3 ? 'h3' : 'h1') : r < 0.12 * allBoost ? 'all' : r < 0.55 ? 'h3' : 'h1';
-  else if (p.ctype === 'tai') k = c < 5.8 ? (r < 0.5 ? 'h1' : 'h3') : c < 7.2 ? (r < 0.7 ? 'h3' : 'all') : r < 0.65 * allBoost ? 'all' : 'h3';
-  else k = c < 6 ? (r < 0.5 ? 'h1' : 'h3') : c < 7.5 ? (r < 0.3 ? 'h1' : r < 0.75 ? 'h3' : 'all') : r < 0.15 ? 'h1' : r < 0.5 ? 'h3' : 'all';
-  if (k === 'all' && late) k = 'h3';
-  return PKG[k];
+  const raw = 1 + Math.pow(R(), 1.35) * norm * 9.5 * typeMul * allBoost + (norm > 0.78 && R() < 0.35 ? 2 : 0);
+  const paid = clamp(Math.round(raw), 1, maxPaid);
+  return makePkg(paid, maxHours);
 }
 
 /* ---------- Pedestrian & Customer Simulation ---------- */
@@ -664,28 +669,29 @@ export function consider(p, l, d) {
 }
 
 export function startSession(p, l, best, pk, act) {
-  const hours = pk.h === 99 ? Math.max(1, (T_END - G.t) / 60) : pk.h;
+  const hours = pk.h;
+  const paid = pk.paid || 1;
   const feeMul = act === 'room' ? conceptOf(l).roomPriceMul : 1;
   const fee = Math.round(pk.fee * feeMul);
   G.money += fee;
-  AU.sfx(pk.h === 99 ? 'coin-double' : 'coin-collect', 500);
+  AU.sfx(paid >= 4 ? 'coin-double' : 'coin-collect', 500);
   l.today.hfee += fee;
   l.today.hours += hours;
   best.todayH += hours;
   best.todayFee = (best.todayFee || 0) + fee;
-  const enCost = hours * (act === 'with' ? 9 : 13) * (hasTrait(best, 'stamina') ? 0.7 : 1);
+  const enCost = (8 + paid * 5.5) * (act === 'room' ? 1.15 : 1) * (hasTrait(best, 'stamina') ? 0.7 : 1);
   best.en = Math.max(0, best.en - Math.min(60, enCost));
-  best.pop += pk.h === 99 ? 2 : 1;
+  best.pop += paid >= 4 ? 2 : 1;
   freeSpot(l, best);
   best.state = act;
   best.with = p;
-  best.until = G.t + hours * 60;
+  best.until = Math.min(T_NEXT_OPEN, G.t + hours * 60);
   p.host = best;
   p.pkg = pk;
   p.act = act;
   p.tm = hours * 60;
   G.fx.push({ x: p.x, y: p.y, z: 14, t: `+${fee}k`, life: 6, col: '#E8B959' });
-  bubble(p, pk.h === 99 ? '买断!' : pk.h === 3 ? '买2送1' : '1 小时', '#E8B959');
+  bubble(p, pk.cn + (act === 'out' && best.until > T_END ? '·带走!' : ''), '#E8B959');
   if (act === 'with') {
     p.phase = 'with';
     const s = sideOf(l, p);
@@ -723,14 +729,16 @@ function pickHostess(p, l) {
     return;
   }
   let best = null;
-  let bc = -1;
+  let bestPick = -99;
   idle.forEach((h) => {
-    const c = choiceScore(p, h) + (p.reg && p.reg.hid === h.id ? 1 : 0);
-    if (c > bc) {
-      bc = c;
+    const base = choiceScore(p, h) + (p.reg && p.reg.hid === h.id ? 1 : 0);
+    const pickVal = base + rnd(-0.35, 0.35);
+    if (pickVal > bestPick) {
+      bestPick = pickVal;
       best = h;
     }
   });
+  const bc = choiceScore(p, best) + (p.reg && p.reg.hid === best.id ? 1 : 0);
   if (bc < CT[p.ctype].th) {
     p.phase = 'solo';
     p.tm = p.ctype === 'local' ? rnd(30, 60) : rnd(15, 30);
@@ -738,13 +746,18 @@ function pickHostess(p, l) {
     bubble(p, '没合眼缘', '#A79B8C');
     return;
   }
-  const pk = choosePkg(p, bc, l);
+  const pk = choosePkg(p, bc, l, best);
   const c = CT[p.ctype];
   let act = 'with';
   const showMul = skillActive(l, 'showtime') ? 1.5 : 1;
   const singerMul = hasTrait(best, 'singer') ? 1.3 : 1;
-  if (R() < c.room * (l.dj ? 1.35 : 1) * showMul * singerMul) act = 'room';
-  else if (pk.h >= 3 && R() < c.out) act = 'out';
+  if (G.t + pk.h * 60 > T_END && (T_END - G.t <= 75 || (pk.paid >= 3 && R() < 0.55))) {
+    act = 'out';
+  } else if (R() < c.room * (l.dj ? 1.35 : 1) * showMul * singerMul) {
+    act = 'room';
+  } else if (pk.h >= 3 && R() < c.out) {
+    act = 'out';
+  }
   if (act === 'room' && l.roomsUsed >= ROOMS[l.rooms]) {
     bubble(p, '包厢满了', '#FF5C54');
     l.today.roomfull++;
@@ -765,10 +778,14 @@ function vipDecide(p, l) {
   }
   v.done = true;
   const ok = l.hostesses
-    .filter((h) => h.state === 'idle' && onDuty(h) && !h.hidden && h.en >= 10 && h.body === v.body && (v.pers === 'any' || h.pers === v.pers))
+    .filter((h) => h.state === 'idle' && onDuty(h) && !h.hidden && h.en >= 10 && (v.body === 'any' || h.body === v.body) && (v.pers === 'any' || h.pers === v.pers))
     .sort((a, b) => choiceScore(p, b) - choiceScore(p, a));
   if (ok.length >= v.n) {
-    mem.forEach((q, i) => startSession(q, l, ok[i], PKG.all, 'with'));
+    const maxH = Math.max(1, (T_NEXT_OPEN - G.t) / 60);
+    mem.forEach((q, i) => {
+      const vipPk = choosePkg(q, Math.max(8.8, choiceScore(q, ok[i]) + 1.8), l, ok[i]);
+      startSession(q, l, ok[i], makePkg(Math.max(4, vipPk.paid), maxH), 'with');
+    });
     const ktvBonus = conceptOf(l).vipMul || 1;
     const achBonus = G.achievements?.includes('vip_king') ? 1.15 : 1;
     const tip = Math.round(3000 * ktvBonus * achBonus);
@@ -823,7 +840,7 @@ export function review(p, h, l, s) {
   } else if (p.reg) p.reg.hid = h.id;
 
   // Special menu: champagne tower & whisky upgrades
-  if (l.menu?.champagne && (s >= 7.8 || p.pkg?.h === 99) && R() < 0.25) {
+  if (l.menu?.champagne && (s >= 7.8 || (p.pkg?.paid || 1) >= 4) && R() < 0.25) {
     const bonus = 680;
     G.money += bonus;
     l.today.drink += bonus;
@@ -837,23 +854,35 @@ export function review(p, h, l, s) {
   }
 }
 
+function finishOvernight(p, h, l, fromRoom) {
+  review(p, h, l, finalSat(p, h, l));
+  if (fromRoom) l.roomsUsed = Math.max(0, l.roomsUsed - 1);
+  h.with = null;
+  h.state = 'out';
+  h.hidden = true;
+  h.returnUntil = Math.min(T_OPEN, h.until - 24 * 60);
+  h.sit = false;
+  h.lift = 0;
+  leaveBar(p, fromRoom);
+}
+
 function endSession(p, l, fromRoom) {
   const h = p.host;
   const s = finalSat(p, h, l);
   const sweetExt = hasTrait(h, 'sweet') ? 0.15 : 0;
-  if (p.pkg.h !== 99 && s >= 7.3 && R() < 0.35 + sweetExt && G.t < T_LAST - 60) {
+  if (s >= 7.3 && R() < 0.35 + sweetExt && G.t < T_LAST - 60 && h.until + 120 <= T_END) {
     const fee = Math.round(HOURFEE * (fromRoom ? conceptOf(l).roomPriceMul : 1));
     G.money += fee;
     l.today.hfee += fee;
-    l.today.hours++;
-    h.todayH++;
+    l.today.hours += 2;
+    h.todayH += 2;
     h.todayFee = (h.todayFee || 0) + fee;
-    h.until += 60;
-    h.en = Math.max(0, h.en - (hasTrait(h, 'stamina') ? 6 : 9));
+    h.until += 120;
+    h.en = Math.max(0, h.en - (hasTrait(h, 'stamina') ? 9 : 13));
     h.pop++;
-    p.tm = 60;
-    p.pkg = PKG.h1;
-    bubble(p, '加钟!', '#E8B959');
+    p.tm = 120;
+    p.pkg = makePkg((p.pkg?.paid || 1) + 1);
+    bubble(p, '加买1送1!', '#E8B959');
     AU.sfx('coin-collect', 500);
     G.fx.push({ x: p.x, y: p.y, z: 14, t: `+${fee}k`, life: 6, col: '#E8B959' });
     return;
@@ -921,11 +950,8 @@ function mineTick(p, l, dt) {
   }
   if (G.t >= T_END - 8) {
     if (p.host && p.host.with === p) {
-      if (p.phase === 'room') endSession(p, l, true);
-      else {
-        p.pkg = PKG.all;
-        endSession(p, l, false);
-      }
+      if (p.host.until > T_END + 15) finishOvernight(p, p.host, l, p.phase === 'room');
+      else endSession(p, l, p.phase === 'room');
     } else {
       leaveBar(p, p.phase === 'room');
     }
@@ -1064,7 +1090,8 @@ function stepPed(p, dt) {
   } else if (p.st === 'room') {
     const l = G.lots[p.bar];
     p.tm -= dt;
-    if (p.tm <= 0 || G.t >= T_END - 8) endSession(p, l, true);
+    if (G.t >= T_END - 8 && p.host && p.host.until > T_END + 15) finishOvernight(p, p.host, l, true);
+    else if (p.tm <= 0 || G.t >= T_END - 8) endSession(p, l, true);
   } else if (p.st === 'browse') {
     p.tm -= dt;
     const l = G.lots[p.shop];
@@ -1087,6 +1114,8 @@ function stepHostess(l, h, dt) {
     const d = l.doors[0];
     h.hidden = false;
     h.state = 'idle';
+    h.until = 0;
+    h.returnUntil = 0;
     h.x = d.out[0];
     h.y = d.out[1];
     hGo(h, [d.in, takeSpot(l, h)], 'home');
@@ -1115,7 +1144,8 @@ function stepHostess(l, h, dt) {
           h.hidden = true;
         } else if (h.then === 'hideOut') {
           h.hidden = true;
-          h.state = h.until >= T_END - 10 ? 'gone' : 'out';
+          h.state = 'out';
+          if (h.until > 24 * 60) h.returnUntil = Math.min(T_OPEN, h.until - 24 * 60);
         }
         h.then = null;
       }
@@ -1513,7 +1543,7 @@ export function morning() {
     n.vip = {
       bar: l.i,
       n: 3 + ((R() * 4) | 0),
-      body: R() < 0.6 ? 'slim' : 'curvy',
+      body: tp === 'tai' ? 'slim' : tp === 'cn' ? 'any' : 'curvy',
       pers: R() < 0.4 ? pick(['intro', 'extro']) : 'any',
       type: tp,
       at: rnd(21, 22.5) * 60,
@@ -1531,6 +1561,16 @@ export function nextDay() {
   G.spent = 0;
   G._opened = false;
   G.poachedToday = false;
+  bars().forEach((l) => {
+    l.hostesses.forEach((h) => {
+      if ((h.state === 'out' || (h.until && h.until > T_END + 15)) && h.until > 24 * 60) {
+        const nextU = Math.min(T_OPEN, h.until - 24 * 60);
+        h.returnUntil = nextU > T0 ? nextU : 0;
+      } else {
+        h.returnUntil = 0;
+      }
+    });
+  });
   G.regs.forEach((r) => {
     if (r.daily) {
       if (R() < 0.2) r.days = 0;
@@ -1568,8 +1608,17 @@ export function skipToOpen() {
   if (!G || G.t >= T_OPEN) return false;
   G.t = T_OPEN;
   G._opened = true;
-  allH().forEach((h) => {
-    if (onDuty(h)) h.worked = true;
+  bars().forEach((l) => {
+    l.hostesses.forEach((h) => {
+      if (h.state === 'out' && h.until <= T_OPEN) {
+        h.state = 'idle';
+        h.hidden = false;
+        h.until = 0;
+        h.returnUntil = 0;
+        placeH(l, h);
+      }
+      if (onDuty(h)) h.worked = true;
+    });
   });
   // Spawn an immediate wave of early evening strollers so street isn't empty
   for (let i = 0; i < 8; i++) spawnPed();

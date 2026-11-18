@@ -286,9 +286,28 @@ for (const st of ['mine', 'empty', 'rival']) {
 }
 assert(panelEl.innerHTML.includes('公关'), 'Missing rival hostess count in street rival panel');
 
-// Verify hidden attitude drives pop gain via review()
-const { review } = await import('../src/sim.js');
-const { CT } = await import('../src/config.js');
+// Verify hidden attitude drives pop gain via review(), categorical body preference & uncapped vouchers
+const { review, choiceScore, choosePkg, startSession, skipToOpen, update, nextDay, scheduleRegs } = await import('../src/sim.js');
+const { CT, makePkg, T_OPEN } = await import('../src/config.js');
+assert.equal(CT.local.body, 'curvy');
+assert.equal(CT.tai.body, 'slim');
+assert.equal(CT.cn.body, 'any');
+assert.equal(makePkg(1).h, 1);
+assert.equal(makePkg(2).h, 3);
+assert.equal(makePkg(6).h, 11);
+assert.equal(makePkg(6).fee, 2400);
+assert.equal(makePkg(9).h, 17);
+
+const hProbe = mkHostess(5);
+assert.equal(hProbe.bs, undefined, 'body must be categorical without numeric bs');
+assert(hProbe.body === 'slim' || hProbe.body === 'curvy');
+
+const hSlim = { body: 'slim', looks: 7, pers: 'extro', ps: 7, att: 7, pop: 10 };
+const hCurvy = { body: 'curvy', looks: 7, pers: 'extro', ps: 7, att: 7, pop: 10 };
+assert(choiceScore({ ctype: 'local', prefPers: 'extro' }, hCurvy) > choiceScore({ ctype: 'local', prefPers: 'extro' }, hSlim), 'local must prefer curvy');
+assert(choiceScore({ ctype: 'tai', prefPers: 'extro' }, hSlim) > choiceScore({ ctype: 'tai', prefPers: 'extro' }, hCurvy), 'tai must prefer slim');
+assert.equal(choiceScore({ ctype: 'cn', prefPers: 'extro' }, hSlim), choiceScore({ ctype: 'cn', prefPers: 'extro' }, hCurvy), 'cn accepts both equally');
+
 const myBars = G2.lots.filter((l) => l.kind === 'mine');
 if (myBars.length) {
   const b = myBars[0];
@@ -307,6 +326,23 @@ if (myBars.length) {
   review(mockGuest, hHi, b, 8.2);
   review(mockGuest, hLo, b, 4.0);
   assert(hHi.pop > hLo.pop, `Expected high-attitude hostess pop (${hHi.pop}) > low-attitude (${hLo.pop})`);
+
+  // Verify wish fulfillment drives uncapped paid hours (> 5 possible)
+  const hDream = { body: 'slim', looks: 10, pers: 'extro', ps: 10, att: 10, pop: 120, traits: ['polyglot'] };
+  const hAvg = { body: 'curvy', looks: 4, pers: 'intro', ps: 4, att: 3, pop: 0, traits: [] };
+  const pDream = { ctype: 'tai', prefPers: 'extro' };
+  let sumDream = 0;
+  let sumAvg = 0;
+  let maxDreamPaid = 0;
+  for (let i = 0; i < 40; i++) {
+    const pkD = choosePkg(pDream, choiceScore(pDream, hDream), b, hDream);
+    const pkA = choosePkg(pDream, choiceScore(pDream, hAvg), b, hAvg);
+    sumDream += pkD.paid;
+    sumAvg += pkA.paid;
+    if (pkD.paid > maxDreamPaid) maxDreamPaid = pkD.paid;
+  }
+  assert(sumDream > sumAvg * 1.5, `Expected high-wish duration sum (${sumDream}) >> average (${sumAvg})`);
+  assert(maxDreamPaid > 5, `Expected uncapped booking > 5 paid hours, got max=${maxDreamPaid}`);
 
   assert(econ.giveHongbao(b, h0.id, pay, noop));
   assert(h0.loyalUntil > G2.day);
@@ -352,11 +388,15 @@ if (myBars.length) {
       ui.renderPanel();
       assertPanelValid('bar:girls:roster');
       assert(panelEl.innerHTML.includes('class="vbar"'), 'Expected visual attribute bars on roster');
+      assert(panelEl.innerHTML.includes('type-pill'), 'Expected categorical body type pill on roster');
+      assert(panelEl.innerHTML.includes('h-bars-2') && !panelEl.innerHTML.includes('<small>苗条</small>') && !panelEl.innerHTML.includes('<small>丰满</small>'), 'Expected no bar for body type on roster');
       assert(!panelEl.innerHTML.includes('态 '), 'Hidden attitude leaked on roster');
       state.G.girlSub = 'cands';
       ui.renderPanel();
       assertPanelValid('bar:girls:cands');
       assert(panelEl.innerHTML.includes('class="vbar"'), 'Expected visual attribute bars on candidates');
+      assert(panelEl.innerHTML.includes('type-pill'), 'Expected categorical body type pill on candidates');
+      assert(!panelEl.innerHTML.includes('h-bars-3'), 'Expected h-bars-2 only (no bar for body type)');
       assert(!panelEl.innerHTML.includes('态 '), 'Hidden attitude leaked on candidates');
     } else {
       ui.renderPanel();
@@ -364,6 +404,36 @@ if (myBars.length) {
       if (tab === 'scout') assert(!panelEl.innerHTML.includes('态度'), 'Hidden attitude preference leaked in scout tab');
     }
   }
+
+  // Test pre-closing overnight takeout booking -> returns before 17:00 (5 PM) next day
+  const hOver = bAfterLoad.hostesses[0];
+  hOver.state = 'idle';
+  hOver.on = true;
+  hOver.sick = false;
+  hOver.en = 95;
+  hOver.mood = 85;
+  state.G.t = 26.5 * 60;
+  const mockNightGuest = {
+    ctype: 'cn',
+    prefPers: 'extro',
+    x: bAfterLoad.x0 + 1,
+    y: bAfterLoad.y0 + 1,
+    home: [bAfterLoad.x0 + 1, bAfterLoad.y0 + 1],
+    bar: bAfterLoad.i,
+    door: bAfterLoad.doors[0],
+    st: 'sit',
+    seat: 0,
+    visits: 0,
+    maxV: 1,
+    ph: 0,
+  };
+  startSession(mockNightGuest, bAfterLoad, hOver, makePkg(8, 14.5), 'out');
+  assert(hOver.until > 27 * 60 && hOver.until <= (24 + 17) * 60, `Expected overnight until in (27h..41h], got ${hOver.until}`);
+  nextDay();
+  const hNext = state.G.lots[bAfterLoad.i].hostesses.find((x) => x.id === hOver.id);
+  assert(hNext && hNext.state === 'out' && hNext.until <= T_OPEN, `Expected overnight hostess still out during afternoon until <= 17:00, got state=${hNext?.state} until=${hNext?.until}`);
+  assert(skipToOpen());
+  assert.equal(hNext.state, 'idle', 'Expected overnight hostess to return by 17:00 opening');
 }
 G2.ev.rain = true;
 ui.showBriefModal(['测试简报']);
@@ -374,7 +444,6 @@ ui.showEndDayModal({
   fines: 0, fee: 0, net: 160, nh: 0, rf: 0, tu: 0, nl: 0, nr: 1, sto: 0, bnc: 0,
   barSummaries: [], extra: [], got: [], sunday: false, bust: false,
 });
-const { update, nextDay, scheduleRegs } = await import('../src/sim.js');
 const { newGame, mkScout, mkMkt, mkBouncer, resetBarDay, placeM, placeBouncer, bars } = state;
 
 console.log('[4/4] UI, economy & live event systems verified with 0 errors');

@@ -71,16 +71,15 @@ export function priceHint(l) {
 }
 
 function hStatus(h) {
+  if (h.state === 'idle') return h.en < 10 ? '休整' : '待客';
+  if (h.state === 'out' && h.until > 24 * 60) {
+    const retH = Math.min(17, Math.round((h.until - 24 * 60) / 60));
+    return `外出·明${retH}点回`;
+  }
   const left = h.until ? Math.max(0, Math.round(h.until - G.t)) : 0;
-  return h.state === 'idle'
-    ? h.en < 10 ? '休整' : '待客'
-    : h.state === 'with'
-      ? '陪酒·' + (h.with && h.with.pkg.h === 99 ? '买断' : `${left}m`)
-      : h.state === 'room'
-        ? `包厢·${left}m`
-        : h.state === 'out'
-          ? `外出·${left}m`
-          : '买断';
+  const dur = left >= 60 ? `${(left / 60).toFixed(1).replace(/\.0$/, '')}h` : `${left}m`;
+  if (h.state === 'out') return left >= 120 ? `外出·${Math.floor((h.until || 0) / 60)}点回` : `外出·${dur}`;
+  return h.state === 'with' ? `陪酒·${dur}` : `包厢·${dur}`;
 }
 
 const staffLook = (o) => {
@@ -106,10 +105,9 @@ function hCard(h, cand, curBar) {
   const otherBars = !cand && curBar ? bars().filter((b) => b.i !== curBar.i) : [];
 
   return `<div class="card hc compact${off ? ' off' : ''}"><div class="hrow">${avatar(h, 34)}<div class="hmain">
-    <h5><span>${esc(h.name)}${t ? `<span class="badge b${t}">${TIER[t]}</span>` : ''}${h.sick ? '<span class="badge boff">病假</span>' : ''}${shielded ? '<span class="shield-badge" title="防挖角护盾">🛡️</span>' : ''}${traitBadges(h)}</span>
+    <h5><span>${esc(h.name)}<span class="type-pill">${BODY[h.body]}</span>${t ? `<span class="badge b${t}">${TIER[t]}</span>` : ''}${h.sick ? '<span class="badge boff">病假</span>' : ''}${shielded ? '<span class="shield-badge" title="防挖角护盾">🛡️</span>' : ''}${traitBadges(h)}</span>
       <em${cand || off ? '' : ` data-live="h:${h.id}"`}>${cand ? `${fmShort(h.wage)}/晚` : off ? '休息中' : hStatus(h)}</em></h5>
-    <div class="h-bars-3">
-      <div class="h-bar-cell"><small>${BODY[h.body]}</small>${vbar(h.bs * 10, 'coral')}</div>
+    <div class="h-bars-2">
       <div class="h-bar-cell"><small>样貌</small>${vbar(h.looks * 10, 'purple')}</div>
       <div class="h-bar-cell"><small>${PERS[h.pers]}</small>${vbar(h.ps * 10, 'sky')}</div>
     </div>
@@ -164,7 +162,7 @@ export function renderEventCards() {
     const mm = String(Math.round(vip.at % 60)).padStart(2, '0');
     cards.push({
       t: `VIP · ${G.lots[vip.bar].name}`,
-      d: `${hh}:${mm} · ${vip.n}人 · 要${BODY[vip.body]}`,
+      d: `${hh}:${mm} · ${vip.n}人 · ${vip.body === 'any' ? '不限身材' : '要' + BODY[vip.body]}`,
       c: '#9E6214',
       ico: '💎',
     });

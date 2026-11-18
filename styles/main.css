@@ -769,6 +769,23 @@ button {
   gap: 6px;
   margin-top: 4px;
 }
+.h-bars-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 4px;
+}
+.type-pill {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: #EFE6D4;
+  color: var(--ink-2);
+  border: 1px solid var(--line);
+  margin-left: 4px;
+}
 .h-bar-cell {
   display: flex;
   flex-direction: column;

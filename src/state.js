@@ -1,6 +1,6 @@
 import {
   ACCENTS, BARPAL, BNAMES, CONCEPTS, HAIRS, HNAMES, LAY, LOTDEF, MNAMES,
-  DRESS, ROOMS, SKINS, TYPE, T0, T_END, T_RIVAL, TRAIT_KEYS,
+  DRESS, ROOMS, SKINS, TYPE, T0, T_END, T_OPEN, T_RIVAL, TRAIT_KEYS,
   Lw, R, clamp, hWage, onDuty, outPt, pick, pickC, playerEls, rnd, scaleEls, stOf, uid,
 } from './config.js';
 
@@ -133,7 +133,6 @@ export function mkHostess(q, forceTrait = false) {
     id: uid(),
     name: pick(HNAMES),
     body: R() < 0.5 ? 'slim' : 'curvy',
-    bs: r(),
     looks: r(),
     att: r(),
     pers: R() < 0.5 ? 'intro' : 'extro',
@@ -499,14 +498,22 @@ export function resetBarDay(l) {
     s.cdUntil = 0;
   });
   l.hostesses.forEach((h) => {
-    h.state = 'idle';
     h.with = null;
     h.todayH = 0;
     h.todayFee = 0;
-    h.hidden = !onDuty(h);
     h.worked = false;
     h.traits = h.traits || [];
     h.loyalUntil = h.loyalUntil || 0;
+    if (h.returnUntil && h.returnUntil > T0 && onDuty(h)) {
+      h.state = 'out';
+      h.until = Math.min(T_OPEN, h.returnUntil);
+      h.hidden = true;
+    } else {
+      h.state = 'idle';
+      h.until = 0;
+      h.returnUntil = 0;
+      h.hidden = !onDuty(h);
+    }
   });
 }
 
@@ -599,7 +606,16 @@ export function runtime(scheduleRegsFn) {
   });
 
   bars().forEach((l) => {
-    l.hostesses.forEach((h) => { if (onDuty(h)) placeH(l, h); });
+    l.hostesses.forEach((h) => {
+      if (h.state === 'out' && onDuty(h)) {
+        h.hidden = true;
+        const o = l.doors[0]?.out || [l.x0, l.y0];
+        h.x = o[0];
+        h.y = o[1];
+      } else if (onDuty(h)) {
+        placeH(l, h);
+      }
+    });
     l.mkts.forEach((m) => placeM(l, m));
     l.bouncers.forEach((b, idx) => placeBouncer(l, b, idx));
   });
@@ -644,9 +660,9 @@ export function newGame(scheduleRegsFn) {
 }
 
 const HF = [
-  'id', 'name', 'body', 'bs', 'looks', 'att', 'pers', 'ps', 'hair', 'skin', 'dress',
+  'id', 'name', 'body', 'looks', 'att', 'pers', 'ps', 'hair', 'skin', 'dress',
   'reviews', 'wage', 'en', 'mood', 'pop', 'on', 'streak', 'hs', 'lt', 'pr', 'refused',
-  'raiseAsk', 'sick', 'traits', 'loyalUntil',
+  'raiseAsk', 'sick', 'traits', 'loyalUntil', 'returnUntil',
 ];
 
 const pickF = (o, f) => {

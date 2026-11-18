@@ -16,6 +16,7 @@ export const T_OPEN = 17 * 60;
 export const T_RIVAL = 18 * 60;
 export const T_LAST = 26.5 * 60;
 export const T_END = 27 * 60;
+export const T_NEXT_OPEN = (24 + 17) * 60;
 export const MIN_SEC = 0.35;
 export const COGS = 15;
 
@@ -24,10 +25,25 @@ export const COMM = 0.45;
 export const ROOMS = [5, 7, 9, 12];
 export const MAXH = 30;
 
+export function makePkg(paid, maxHours = 99) {
+  const p = Math.max(1, Math.round(paid));
+  const free = p - 1;
+  const nomH = p + free;
+  const h = Math.max(1, Math.min(nomH, maxHours));
+  return {
+    k: p === 1 ? 'h1' : `p${p}`,
+    paid: p,
+    free,
+    nomH,
+    h,
+    fee: p * HOURFEE,
+    cn: p === 1 ? '1 小时' : `买${p}送${free}`,
+  };
+}
+
 export const PKG = {
-  h1: { k: 'h1', h: 1, fee: 400, cn: '1 小时' },
-  h3: { k: 'h3', h: 3, fee: 800, cn: '买 2 送 1（3 小时）' },
-  all: { k: 'all', h: 99, fee: 2000, cn: '买断全天' },
+  h1: makePkg(1),
+  h3: makePkg(2),
 };
 
 export const SHIRTS = ['#C8574B', '#5B7FA6', '#5E9B80', '#E2B24A', '#8A6FA8', '#D98F6B', '#6E7F8A', '#F0E8D6', '#3F4A5A', '#A8B88A'];
@@ -356,14 +372,14 @@ export const CT = {
   cn: {
     cn: '中客',
     col: '#C8322F',
-    body: 'slim',
+    body: 'any',
     drink: 24,
     room: 0.33,
     out: 0.28,
     th: 4.3,
     grp: [1],
     shirts: ['#F3F3F0', '#2F261E', '#3F4A5A', '#E9E3D6'],
-    note: '一个人来，喜欢苗条，钟点随意；满意会连来 7–8 天',
+    note: '苗条丰满皆可，出手阔绰；满意会连来 7–8 天',
   },
 };
 
@@ -429,7 +445,7 @@ export const onDuty = (h) => h.on && !h.sick;
 export const activeH = (l) => l.hostesses.filter(onDuty);
 export const effAtt = (h) => clamp(h.att - (h.en < 20 ? 4 : h.en < 40 ? 2 : 0) + (h.mood >= 75 ? 1 : h.mood < 30 ? -1 : 0), 1, 10);
 export const moodTx = (m) => (m >= 70 ? ['开心', '#1F6E5A'] : m >= 40 ? ['一般', '#6E5F50'] : ['不爽', '#B5362F']);
-export const hWage = (h) => Math.round((80 + 22 * h.looks + 12 * h.bs + 8 * h.ps + 10 * h.att) / 10) * 10;
+export const hWage = (h) => Math.round((110 + 26 * h.looks + 10 * h.ps + 12 * h.att) / 10) * 10;
 
 export const Lw = (l, u, v) =>
   l.f === 'yMax' ? [l.x0 + u, l.y0 + v]

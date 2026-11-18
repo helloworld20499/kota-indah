@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import { CT, GX, Lw, POLES, Z_SCALE, clamp, fm, tierOf } from './config.js';
-import { ART_STYLES } from './themes.js';
+import { CT, GX, Lw, POLES, Z_SCALE, activeH, clamp, fm, tierOf } from './config.js';
 import {
-  buildClayHumanGeometries, buildScooterGeometries, buildSedanGeometries,
-  makeClayFaceTexture, makePaperBodyTexture, makePaperHairTexture, makePaperHeadTexture,
+  buildScooterGeometries, buildSedanGeometries,
+  makePaperBodyTexture, makePaperHairTexture, makePaperHeadTexture,
 } from './meshes3d.js';
+import { cap } from './state.js';
 import { barOpen, lit, skillActive } from './sim.js';
 
 const MAX_HUMANS = 768;
@@ -59,25 +59,7 @@ export class Actors3D {
     const shMat = new THREE.MeshBasicMaterial({ color: '#141016', transparent: true, opacity: 0.28, depthWrite: false });
     this.shadowMesh = new THREE.InstancedMesh(shGeo, shMat, MAX_HUMANS);
 
-    // Version A: Sculpted 3D Clay Toy Human layers
-    const clay = buildClayHumanGeometries();
-    const clayMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.62 });
-    const faceMat = new THREE.MeshStandardMaterial({ map: makeClayFaceTexture(), color: '#ffffff', roughness: 0.58 });
-
-    this.legLMesh = new THREE.InstancedMesh(clay.legGeo, clayMat, MAX_HUMANS);
-    this.legRMesh = new THREE.InstancedMesh(clay.legGeo, clayMat, MAX_HUMANS);
-    this.armLMesh = new THREE.InstancedMesh(clay.armGeo, clayMat, MAX_HUMANS);
-    this.armRMesh = new THREE.InstancedMesh(clay.armGeo, clayMat, MAX_HUMANS);
-    this.dressMesh = new THREE.InstancedMesh(clay.dressGeo, clayMat, MAX_HUMANS);
-    this.coatMesh = new THREE.InstancedMesh(clay.coatGeo, clayMat, MAX_HUMANS);
-    this.headMesh = new THREE.InstancedMesh(clay.headGeo, faceMat, MAX_HUMANS);
-    this.hairMesh = new THREE.InstancedMesh(clay.hairGeo, clayMat, MAX_HUMANS);
-
-    // Legacy alias kept for verify-all compatibility
-    this.legMesh = this.legLMesh;
-    this.torsoMesh = this.coatMesh;
-
-    // Version B: 2.5D Pen-Inked Watercolor Paper-Doll layers
+    // 2.5D Pen-Inked Watercolor Paper-Doll layers
     const cardGeo = new THREE.PlaneGeometry(0.7, 0.72);
     const headCardGeo = new THREE.PlaneGeometry(0.45, 0.45);
     const hairCardGeo = new THREE.PlaneGeometry(0.48, 0.46);
@@ -98,9 +80,7 @@ export class Actors3D {
     this.badgeMesh = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.085, 0), badgeMat, MAX_BADGES);
 
     const allMeshes = [
-      this.shadowMesh, this.legLMesh, this.legRMesh, this.armLMesh, this.armRMesh,
-      this.dressMesh, this.coatMesh, this.headMesh, this.hairMesh,
-      this.paperBodyMesh, this.paperHeadMesh, this.paperHairMesh, this.badgeMesh,
+      this.shadowMesh, this.paperBodyMesh, this.paperHeadMesh, this.paperHairMesh, this.badgeMesh,
     ];
     _col.setHex(0xffffff);
     allMeshes.forEach((m) => {
@@ -109,8 +89,8 @@ export class Actors3D {
       if (m !== this.shadowMesh) m.setColorAt(0, _col);
       this.scene.add(m);
     });
-    this.dressMesh.castShadow = true;
-    this.coatMesh.castShadow = true;
+    this.paperBodyMesh.castShadow = true;
+    this.paperHeadMesh.castShadow = true;
   }
 
   _initVehicles() {
@@ -231,7 +211,7 @@ export class Actors3D {
   _initHudPool() {
     this.hudNodes = [];
     if (!this.hudContainer) return;
-    for (let i = 0; i < 52; i++) {
+    for (let i = 0; i < 96; i++) {
       const el = document.createElement('div');
       el.className = 'whud-pill';
       el.style.display = 'none';
@@ -261,107 +241,32 @@ export class Actors3D {
     }
     this.shadowMesh.setMatrixAt(idx, _m4);
 
-    if (state.actorMode === 'paper25d') {
-      const pi = state.paperCount++;
-      const wobble = sit ? 0 : stride * 0.085;
-      _euler.set(0, state.camYaw, wobble);
-      _quat.setFromEuler(_euler);
-
-      _pos.set(x, yBase + 0.34 + bounce, z);
-      _scl.set(wMul, sit ? 0.84 : 1, 1);
-      _m4.compose(_pos, _quat, _scl);
-      this.paperBodyMesh.setMatrixAt(pi, _m4);
-      this.paperBodyMesh.setColorAt(pi, _col.set(shirt || '#C8574B'));
-
-      _pos.set(x, yBase + (sit ? 0.64 : 0.75) + bounce, z);
-      _scl.set(1, 1, 1);
-      _m4.compose(_pos, _quat, _scl);
-      this.paperHeadMesh.setMatrixAt(pi, _m4);
-      this.paperHeadMesh.setColorAt(pi, _col.set(skin || '#D7A47C'));
-
-      // Offset hair subtly toward camera forward so no z-fighting
-      _pos.set(x + state.camFwdX * 0.015, yBase + (sit ? 0.68 : 0.79) + bounce, z + state.camFwdZ * 0.015);
-      _m4.compose(_pos, _quat, _scl);
-      this.paperHairMesh.setMatrixAt(pi, _m4);
-      this.paperHairMesh.setColorAt(pi, _col.set(hair || '#2b211b'));
-
-      if (badgeCol && state.bCount < MAX_BADGES) {
-        const bi = state.bCount++;
-        _pos.set(x, yBase + 1.05 + Math.sin(state.now / 280 + idx) * 0.04, z);
-        _euler.set(0, state.now / 500 + idx, 0);
-        _quat.setFromEuler(_euler);
-        _m4.compose(_pos, _quat, _scl);
-        this.badgeMesh.setMatrixAt(bi, _m4);
-        this.badgeMesh.setColorAt(bi, _col.set(badgeCol));
-      }
-      return;
-    }
-
-    // Version A: Sculpted 3D Clay Toy Character
-    const ci = state.clayCount++;
-    const yaw = state.camYaw;
-
-    // Legs (left & right swinging stride or folded sitting)
-    const legPitch = sit ? -Math.PI / 2.6 : stride * 0.55;
-    [-0.065, 0.065].forEach((sideOff, li) => {
-      const pitch = li === 0 ? legPitch : (sit ? legPitch : -legPitch);
-      _pos.set(x + Math.cos(yaw) * sideOff, yBase + (sit ? 0.16 : 0.14), z - Math.sin(yaw) * sideOff);
-      _euler.set(pitch, yaw, 0, 'YXZ');
-      _quat.setFromEuler(_euler);
-      _scl.set(1, sit ? 0.75 : 1, 1);
-      _m4.compose(_pos, _quat, _scl);
-      const legM = li === 0 ? this.legLMesh : this.legRMesh;
-      legM.setMatrixAt(ci, _m4);
-      legM.setColorAt(ci, _col.set(pants || '#3e3832'));
-    });
-
-    // Sculpted Torso (A-line flared dress for women/hostesses, rounded coat for men)
-    const legTop = yBase + (sit ? 0.22 : 0.27) + bounce;
-    _pos.set(x, legTop, z);
-    _euler.set(0, yaw, 0);
+    const pi = state.paperCount++;
+    const wobble = sit ? 0 : (wave ? Math.sin(state.now / 150) * 0.12 : stride * 0.085);
+    _euler.set(0, state.camYaw, wobble);
     _quat.setFromEuler(_euler);
-    _scl.set(wMul, 1, wMul);
+
+    _pos.set(x, yBase + 0.34 + bounce, z);
+    _scl.set(wMul, sit ? 0.84 : 1, 1);
     _m4.compose(_pos, _quat, _scl);
-    if (female) {
-      const di = state.dressCount++;
-      this.dressMesh.setMatrixAt(di, _m4);
-      this.dressMesh.setColorAt(di, _col.set(shirt || '#C8574B'));
-    } else {
-      const mi = state.coatCount++;
-      this.coatMesh.setMatrixAt(mi, _m4);
-      this.coatMesh.setColorAt(mi, _col.set(shirt || '#5B7FA6'));
-    }
+    this.paperBodyMesh.setMatrixAt(pi, _m4);
+    this.paperBodyMesh.setColorAt(pi, _col.set(shirt || '#C8574B'));
 
-    // Swinging Arms (with animated wave for marketing/touts)
-    [-0.17 * wMul, 0.17 * wMul].forEach((sideOff, ai) => {
-      const armPitch = ai === 1 && wave ? -Math.PI * 0.75 + Math.sin(state.now / 150) * 0.35 : sit ? -0.3 : (ai === 0 ? -stride * 0.5 : stride * 0.5);
-      _pos.set(x + Math.cos(yaw) * sideOff, legTop + 0.31, z - Math.sin(yaw) * sideOff);
-      _euler.set(armPitch, yaw, ai === 0 ? 0.15 : -0.15, 'YXZ');
-      _quat.setFromEuler(_euler);
-      _scl.set(1, 1, 1);
-      _m4.compose(_pos, _quat, _scl);
-      const armM = ai === 0 ? this.armLMesh : this.armRMesh;
-      armM.setMatrixAt(ci, _m4);
-      armM.setColorAt(ci, _col.set(shirt || '#C8574B'));
-    });
-
-    // Spherical Head + Sculpted Hair
-    _pos.set(x, legTop + 0.57, z);
-    _euler.set(0, yaw, 0);
-    _quat.setFromEuler(_euler);
+    _pos.set(x, yBase + (sit ? 0.64 : 0.75) + bounce, z);
     _scl.set(1, 1, 1);
     _m4.compose(_pos, _quat, _scl);
-    this.headMesh.setMatrixAt(ci, _m4);
-    this.headMesh.setColorAt(ci, _col.set(skin || '#D7A47C'));
+    this.paperHeadMesh.setMatrixAt(pi, _m4);
+    this.paperHeadMesh.setColorAt(pi, _col.set(skin || '#D7A47C'));
 
-    _pos.set(x, legTop + 0.61, z);
+    // Offset hair subtly toward camera forward so no z-fighting
+    _pos.set(x + state.camFwdX * 0.015, yBase + (sit ? 0.68 : 0.79) + bounce, z + state.camFwdZ * 0.015);
     _m4.compose(_pos, _quat, _scl);
-    this.hairMesh.setMatrixAt(ci, _m4);
-    this.hairMesh.setColorAt(ci, _col.set(hair || '#2b211b'));
+    this.paperHairMesh.setMatrixAt(pi, _m4);
+    this.paperHairMesh.setColorAt(pi, _col.set(hair || '#2b211b'));
 
     if (badgeCol && state.bCount < MAX_BADGES) {
       const bi = state.bCount++;
-      _pos.set(x, legTop + 0.88 + Math.sin(state.now / 280 + idx) * 0.04, z);
+      _pos.set(x, yBase + 1.05 + Math.sin(state.now / 280 + idx) * 0.04, z);
       _euler.set(0, state.now / 500 + idx, 0);
       _quat.setFromEuler(_euler);
       _m4.compose(_pos, _quat, _scl);
@@ -403,22 +308,17 @@ export class Actors3D {
     const cam = this.scene3d.camera;
     const tgt = this.scene3d.controls.target;
     const camYaw = Math.atan2(cam.position.x - tgt.x, cam.position.z - tgt.z);
-    const theme = ART_STYLES[this.scene3d.artStyle || 'diorama'];
 
     this.hudW = this.hudContainer ? this.hudContainer.clientWidth : 800;
     this.hudH = this.hudContainer ? this.hudContainer.clientHeight : 600;
 
     const state = {
       hCount: 0,
-      clayCount: 0,
-      dressCount: 0,
-      coatCount: 0,
       paperCount: 0,
       bCount: 0,
       gCount: 0,
       hudIdx: 0,
       now,
-      actorMode: theme.actorMode,
       camYaw,
       camFwdX: Math.sin(camYaw),
       camFwdZ: Math.cos(camYaw),
@@ -495,51 +395,16 @@ export class Actors3D {
     this._pushHuman(state, 50.6, 29.3, 0, 0, false, '#3F4A5A', '#1f1a18', '#C99670', '#2F261E', false, null, false, false);
     this._pushHuman(state, 50.6, 6.7, 0, 0, false, '#3F4A5A', '#1f1a18', '#C99670', '#2F261E', false, null, false, false);
 
-    // Toggle clay 3D vs paper 2.5D layers cleanly
-    const isClay = theme.actorMode === 'clay3d';
-    [this.legLMesh, this.legRMesh, this.armLMesh, this.armRMesh, this.dressMesh, this.coatMesh, this.headMesh, this.hairMesh].forEach((m) => {
-      m.visible = isClay;
-    });
-    [this.paperBodyMesh, this.paperHeadMesh, this.paperHairMesh].forEach((m) => {
-      m.visible = !isClay;
-    });
-
     this.shadowMesh.count = state.hCount;
     this.shadowMesh.instanceMatrix.needsUpdate = true;
 
-    if (isClay) {
-      this.paperBodyMesh.count = 0;
-      this.paperHeadMesh.count = 0;
-      this.paperHairMesh.count = 0;
-      this.legLMesh.count = state.clayCount;
-      this.legRMesh.count = state.clayCount;
-      this.armLMesh.count = state.clayCount;
-      this.armRMesh.count = state.clayCount;
-      this.headMesh.count = state.clayCount;
-      this.hairMesh.count = state.clayCount;
-      this.dressMesh.count = state.dressCount;
-      this.coatMesh.count = state.coatCount;
-      [this.legLMesh, this.legRMesh, this.armLMesh, this.armRMesh, this.dressMesh, this.coatMesh, this.headMesh, this.hairMesh].forEach((m) => {
-        m.instanceMatrix.needsUpdate = true;
-        if (m.instanceColor) m.instanceColor.needsUpdate = true;
-      });
-    } else {
-      this.legLMesh.count = 0;
-      this.legRMesh.count = 0;
-      this.armLMesh.count = 0;
-      this.armRMesh.count = 0;
-      this.headMesh.count = 0;
-      this.hairMesh.count = 0;
-      this.dressMesh.count = 0;
-      this.coatMesh.count = 0;
-      this.paperBodyMesh.count = state.paperCount;
-      this.paperHeadMesh.count = state.paperCount;
-      this.paperHairMesh.count = state.paperCount;
-      [this.paperBodyMesh, this.paperHeadMesh, this.paperHairMesh].forEach((m) => {
-        m.instanceMatrix.needsUpdate = true;
-        if (m.instanceColor) m.instanceColor.needsUpdate = true;
-      });
-    }
+    this.paperBodyMesh.count = state.paperCount;
+    this.paperHeadMesh.count = state.paperCount;
+    this.paperHairMesh.count = state.paperCount;
+    [this.paperBodyMesh, this.paperHeadMesh, this.paperHairMesh].forEach((m) => {
+      m.instanceMatrix.needsUpdate = true;
+      if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    });
 
     this.badgeMesh.count = state.bCount;
     this.badgeMesh.instanceMatrix.needsUpdate = true;
@@ -715,21 +580,20 @@ export class Actors3D {
     }
 
     if (zoom < 1.55 && G.view == null) {
-      const isStorybook = this.scene3d.artStyle === 'storybook';
       for (let i = 0; i < G.lots.length; i++) {
         const l = G.lots[i];
         if (l.top) continue;
         const c = Lw(l, l.L / 2, l.D / 2);
-        let label = isStorybook ? `${l.name} · ${lit(l) ? '营业' : '打烊'}` : l.name;
+        let label = `${l.name} · ${lit(l) ? '营业' : '打烊'}`;
         let cls = 'shop-lbl';
         if (l.kind === 'empty') {
-          label = isStorybook ? `空铺 · 招租 ${fm(l.cost)}` : `招租 ${fm(l.cost)}`;
+          label = `空铺 · ${fm(l.cost)}`;
           cls = 'shop-lbl empty';
         } else if (l.kind === 'mine') {
-          label = isStorybook
-            ? `★ ${l.name} · ${barOpen() ? `营业 ${l._g.length}/${l._seats?.length || 0}` : '17:00 开'}`
-            : `★ ${l.name} · ${l._g.length}/${l._seats?.length || 0}`;
+          label = `★ ${l.name} · 客 ${l._g.length}/${cap(l)} · 公关 ${activeH(l).length}`;
           cls = 'shop-lbl mine';
+        } else if (l.kind === 'rival') {
+          label = `${l.name} · ${lit(l) ? `客 ${l._g.length}/${cap(l)} · ` : ''}公关 ${l.hn}`;
         }
         this._pushHud(state, c[0], 2.45, c[1], label, cls, onSelectLot ? () => onSelectLot(l.i) : null);
       }

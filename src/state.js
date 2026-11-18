@@ -457,7 +457,7 @@ export function buildRivalStaff(l) {
   }
   l.touts = [];
   if (l.mode === 'agg') {
-    const count = G.rival[l.i]?.touts || 3;
+    const count = clamp(G.rival[l.i]?.touts || 1, 1, 2);
     for (let i = 0; i < count; i++) {
       const t = { hair: pick(HAIRS), skin: pick(SKINS), _path: [], _pi: 0, _wait: rnd(0, 3), _ph: 0 };
       const z = toutZone(l);
@@ -527,6 +527,8 @@ export function createInitialState() {
     mine: {},
     regs: [],
     tab: 'run',
+    streetTab: 'empty',
+    girlSub: 'roster',
     history: [],
     achievements: [],
     stats: {
@@ -579,7 +581,9 @@ export function runtime(scheduleRegsFn) {
   G.rival = G.rival || {};
   G.lots.forEach((l) => {
     if (l.kind !== 'rival') return;
-    const r = G.rival[l.i] || (G.rival[l.i] = { mode: R() < 0.5 ? 'agg' : 'con', hn: 20 + ((R() * 11) | 0), q: rnd(0.3, 0.8), pm: 1 });
+    const r = G.rival[l.i] || (G.rival[l.i] = { mode: R() < 0.5 ? 'agg' : 'con', hn: 3 + ((R() * 3) | 0), touts: 1, q: rnd(0.3, 0.8), pm: 1 });
+    const maxHn = Math.min(12, 5 + Math.floor(((G.day || 1) - 1) / 4));
+    r.hn = clamp(r.hn || 4, 3, maxHn);
     l.mode = r.mode;
     l.hn = r.hn;
   });

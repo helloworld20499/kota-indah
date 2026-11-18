@@ -153,109 +153,26 @@ export function buildStaticBikeGeom(colorHex) {
   return mergeGeometries([prepGeom(bodyGeo, colorHex), detailGeo], false);
 }
 
-/* ---------- 3. Sculpted Pear Tree (Diorama) & Round Tree (Storybook) ---------- */
-export function buildPearTreeGeom(mode = 'polyPear') {
+/* ---------- 3. Storybook Rounded Poly-Watercolor Tree ---------- */
+export function buildStorybookTreeGeom() {
   const parts = [];
   const trunk = new THREE.CylinderGeometry(0.1, 0.16, 1.35, 7);
   trunk.translate(0, 0.68, 0);
   parts.push(prepGeom(trunk, '#7D5233'));
 
-  if (mode === 'polyPear') {
-    const pts = [
-      new THREE.Vector2(0.0, 1.05),
-      new THREE.Vector2(0.55, 1.12),
-      new THREE.Vector2(0.84, 1.55),
-      new THREE.Vector2(0.76, 2.08),
-      new THREE.Vector2(0.52, 2.52),
-      new THREE.Vector2(0.24, 2.86),
-      new THREE.Vector2(0.0, 3.0),
-    ];
-    const crown = new THREE.LatheGeometry(pts, 7);
-    parts.push(prepGeom(crown, '#6EA838'));
-    const tuft = new THREE.DodecahedronGeometry(0.46, 0);
-    tuft.translate(-0.22, 2.35, 0.18);
-    parts.push(prepGeom(tuft, '#87BF4C'));
-  } else {
-    const crown = new THREE.DodecahedronGeometry(0.82, 1);
-    crown.scale(1, 0.92, 1);
-    crown.translate(0, 1.95, 0);
-    parts.push(prepGeom(crown, '#7FB08A'));
-    const hi = new THREE.DodecahedronGeometry(0.48, 1);
-    hi.translate(-0.22, 2.28, 0.14);
-    parts.push(prepGeom(hi, '#96C59E'));
-  }
+  const crown = new THREE.DodecahedronGeometry(0.82, 1);
+  crown.scale(1, 0.92, 1);
+  crown.translate(0, 1.95, 0);
+  parts.push(prepGeom(crown, '#7FB08A'));
+
+  const hi = new THREE.DodecahedronGeometry(0.48, 1);
+  hi.translate(-0.22, 2.28, 0.14);
+  parts.push(prepGeom(hi, '#96C59E'));
+
   return mergeGeometries(parts, false);
 }
 
-/* ---------- 4. Version A: Sculpted 3D Clay Toy Human Geometries ---------- */
-export function makeClayFaceTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 128;
-  canvas.height = 128;
-  const c = canvas.getContext('2d');
-  c.fillStyle = '#ffffff';
-  c.fillRect(0, 0, 128, 128);
-  // Front face centered around u = 0.5 (or mapped on sphere front)
-  c.fillStyle = '#2F261E';
-  c.beginPath();
-  c.arc(52, 62, 4.5, 0, Math.PI * 2);
-  c.arc(76, 62, 4.5, 0, Math.PI * 2);
-  c.fill();
-  c.fillStyle = 'rgba(235, 130, 125, 0.55)';
-  c.beginPath();
-  c.arc(42, 72, 6, 0, Math.PI * 2);
-  c.arc(86, 72, 6, 0, Math.PI * 2);
-  c.fill();
-  c.strokeStyle = '#7A3B33';
-  c.lineWidth = 3;
-  c.beginPath();
-  c.arc(64, 72, 8, 0.2, Math.PI - 0.2);
-  c.stroke();
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-export function buildClayHumanGeometries() {
-  // Dress torso (A-line flared skirt + soft shoulders)
-  const dressPts = [
-    new THREE.Vector2(0.0, 0.0),
-    new THREE.Vector2(0.21, 0.02),
-    new THREE.Vector2(0.18, 0.18),
-    new THREE.Vector2(0.125, 0.30),
-    new THREE.Vector2(0.14, 0.42),
-    new THREE.Vector2(0.09, 0.47),
-    new THREE.Vector2(0.0, 0.48),
-  ];
-  const dressGeo = prepGeom(new THREE.LatheGeometry(dressPts, 12));
-
-  // Coat/shirt torso (rounded shoulders & soft waist)
-  const coatPts = [
-    new THREE.Vector2(0.0, 0.0),
-    new THREE.Vector2(0.15, 0.02),
-    new THREE.Vector2(0.145, 0.24),
-    new THREE.Vector2(0.155, 0.40),
-    new THREE.Vector2(0.10, 0.47),
-    new THREE.Vector2(0.0, 0.48),
-  ];
-  const coatGeo = prepGeom(new THREE.LatheGeometry(coatPts, 12));
-
-  const headGeo = prepGeom(new THREE.SphereGeometry(0.155, 14, 10));
-  headGeo.rotateY(-Math.PI / 2);
-
-  // Rounded hair cap + back bun
-  const cap = new THREE.SphereGeometry(0.165, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.58);
-  const bun = new THREE.SphereGeometry(0.08, 8, 6);
-  bun.translate(0, 0.02, -0.15);
-  const hairGeo = mergeGeometries([prepGeom(cap), prepGeom(bun)], false);
-
-  const legGeo = prepGeom(new THREE.CapsuleGeometry(0.048, 0.16, 4, 8));
-  const armGeo = prepGeom(new THREE.CapsuleGeometry(0.04, 0.17, 4, 8));
-
-  return { dressGeo, coatGeo, headGeo, hairGeo, legGeo, armGeo };
-}
-
-/* ---------- 5. Version B: 2.5D Hand-Inked Storybook Paper-Doll Textures ---------- */
+/* ---------- 4. 2.5D Hand-Inked Storybook Paper-Doll Textures ---------- */
 export function makePaperBodyTexture() {
   const canvas = document.createElement('canvas');
   canvas.width = 256;

@@ -19,9 +19,7 @@ import {
 import { Scene3D } from './scene3d.js';
 import { World3D } from './world3d.js';
 import { Actors3D } from './actors3d.js';
-import {
-  ART_STYLES, LIGHT_MODES, applyDomTheme, getInitialArtStyle, saveArtStyle,
-} from './themes.js';
+import { LIGHT_MODES } from './themes.js';
 import { live, priceHint, renderLiveEvent, renderPanel, showAchievementsModal, showBriefModal, showEndDayModal, toast } from './ui.js';
 
 const $ = (id) => document.getElementById(id);
@@ -57,6 +55,11 @@ export function act(a, v) {
     return;
   } else if (a === 'tab') {
     G.tab = v;
+  } else if (a === 'streetTab') {
+    G.streetTab = v;
+  } else if (a === 'girlSub') {
+    G.girlSub = v;
+    G._girlSubAuto = -1;
   } else if (a === 'rent') {
     const e = G.lots[+v];
     if (!e || e.kind !== 'empty' || !pay(e.cost)) return;
@@ -102,7 +105,10 @@ export function act(a, v) {
       lowProfile: { activeUntil: 0, cdUntil: 0 },
     };
     G.mine[e.i] = e;
+    G.streetTab = 'mine';
     G.tab = 'girls';
+    G.girlSub = 'cands';
+    G._girlSubAuto = e.i;
     world3d?.rebuildLot(e, G);
     focusLot(e.i);
     toast('开张了！先签几个公关，再点击「跳至 17:00 开门」！');
@@ -388,63 +394,18 @@ function initUIEvents() {
     toast(`3D 画质已切至 ${QLABELS[mode].slice(3)}（当前渲染：${scene3d.effectiveQuality}）`);
   });
 
-  const setArtStyle = (styleId) => {
-    const id = ART_STYLES[styleId] ? styleId : 'diorama';
-    saveArtStyle(id);
-    applyDomTheme(id);
-    if (typeof window !== 'undefined' && window.history?.replaceState) {
-      const url = new URL(window.location.href);
-      url.searchParams.set('style', id);
-      window.history.replaceState(null, '', url.toString());
-    }
-    scene3d?.setArtStyle(id);
-    world3d?.buildAll(G);
-    document.querySelectorAll('#artSwitch button').forEach((b) => {
-      b.classList.toggle('on', b.dataset.art === id);
-    });
-    const btnRoof = $('btnRoof');
-    if (btnRoof) btnRoof.style.display = id === 'diorama' ? '' : 'none';
-    toast(`已切换至「${ART_STYLES[id].label}」画风`);
-  };
-  window.__setArt = setArtStyle;
-
-  document.querySelectorAll('#artSwitch button').forEach((b) => {
-    b.classList.toggle('on', b.dataset.art === scene3d.artStyle);
-  });
-  if ($('btnRoof')) $('btnRoof').style.display = scene3d.artStyle === 'diorama' ? '' : 'none';
-
-  $('artSwitch')?.addEventListener('click', (e) => {
-    const b = e.target.closest('[data-art]');
-    if (!b || !scene3d) return;
-    AU.sfx('click-soft-tap');
-    if (b.dataset.art !== scene3d.artStyle) setArtStyle(b.dataset.art);
-  });
-
+  const LMODES = Object.keys(LIGHT_MODES);
   const LLABELS = { bright: '💡 夜景:明亮', cozy: '💡 夜景:氛围', day: '☀️ 白昼常亮' };
   const btnLight = $('btnLight');
   if (btnLight) {
     btnLight.textContent = LLABELS[scene3d.lightMode] || LLABELS.bright;
     btnLight.addEventListener('click', (e) => {
       AU.sfx('click-soft-tap');
-      const idx = (LIGHT_MODES.indexOf(scene3d.lightMode) + 1) % LIGHT_MODES.length;
-      const mode = LIGHT_MODES[idx];
+      const idx = (LMODES.indexOf(scene3d.lightMode) + 1) % LMODES.length;
+      const mode = LMODES[idx];
       scene3d.setLightMode(mode);
       e.currentTarget.textContent = LLABELS[mode];
       toast(`光照模式：${LLABELS[mode].replace(/^[^\s]+\s*/, '')}`);
-    });
-  }
-
-  const btnRoof = $('btnRoof');
-  if (btnRoof) {
-    btnRoof.classList.toggle('on', scene3d.roofMode);
-    btnRoof.textContent = scene3d.roofMode ? '🏠 屋顶外观' : '🏠 剖面观察';
-    btnRoof.addEventListener('click', (e) => {
-      AU.sfx('click-soft-tap');
-      scene3d.roofMode = !scene3d.roofMode;
-      e.currentTarget.classList.toggle('on', scene3d.roofMode);
-      e.currentTarget.textContent = scene3d.roofMode ? '🏠 屋顶外观' : '🏠 剖面观察';
-      world3d.buildAll(G);
-      toast(scene3d.roofMode ? '已显示彩色屋顶外观' : '已切换为无遮挡剖面观察');
     });
   }
 
@@ -510,16 +471,12 @@ function initUIEvents() {
       G.view = null;
       scene3d?.overview();
       renderPanel();
-    } else if (tab === 'street') {
-      const rival = G.lots.find((x) => x.kind === 'rival');
-      G.view = rival ? rival.i : null;
-      if (G.view != null) scene3d?.focusLot(G.lots[G.view]);
-      renderPanel();
     } else {
       if (!bs.length) {
         G.view = null;
+        G.streetTab = 'empty';
         renderPanel();
-        toast('请先在全景或 3D 地图上租下第一家铺位开店！');
+        toast('请先在招租列表或 3D 地图上租下第一家铺位开店！');
       } else {
         const targetBar = G.view != null && G.lots[G.view]?.kind === 'mine' ? G.lots[G.view] : bs[0];
         G.tab = tab === 'staff' ? 'mkt' : tab;
@@ -605,10 +562,8 @@ function boot() {
     onAchievement: () => {},
   });
 
-  const artStyle = getInitialArtStyle();
-  applyDomTheme(artStyle);
   const vp = $('viewport3d');
-  scene3d = new Scene3D(vp, artStyle);
+  scene3d = new Scene3D(vp);
   world3d = new World3D(scene3d);
   actors3d = new Actors3D(scene3d, $('world-hud'));
   world3d.buildAll(G);

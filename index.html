@@ -15,18 +15,15 @@
 }
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Patrick+Hand&family=Young+Serif&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&family=Plus+Jakarta+Sans:wght@500;600;700&family=ZCOOL+XiaoWei&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles/main.css">
 </head>
 <body>
 <header class="top">
   <div class="brand">
-    <svg width="28" height="28" viewBox="0 0 30 30" fill="none" stroke="#E8B959" stroke-width="1.7" stroke-linecap="round"><path d="M8 5h14l-2 9a5 5 0 0 1-10 0z"/><path d="M15 19v6M10 25h10"/></svg>
-    <div><b>Kota Indah 夜街</b><i>Jl. Komp. Ruko Kota Indah · 双画风 3D</i></div>
-  </div>
-  <div class="art-switch" id="artSwitch">
-    <button data-art="diorama" class="on">🎨 玩具沙盘</button>
-    <button data-art="storybook">✏️ 手绘绘本</button>
+    <svg width="26" height="26" viewBox="0 0 30 30" fill="none" stroke="#B5362F" stroke-width="1.8" stroke-linecap="round"><path d="M8 5h14l-2 9a5 5 0 0 1-10 0z"/><path d="M15 19v6M10 25h10"/></svg>
+    <div><b>Kota Indah 夜街</b><i>Jl. Komp. Ruko Kota Indah · 手绘夜街经营</i></div>
   </div>
   <div class="bar-pills" id="barPills"></div>
   <div class="chip"><span id="hDay"></span></div>
@@ -55,11 +52,11 @@
       </div>
     </div>
     <nav class="mob-tabs" id="mobTabs" aria-label="快捷导航">
-      <button data-mtab="overview">🗺️ 总览</button>
-      <button data-mtab="run">🍸 经营</button>
+      <button data-mtab="overview">🗺️ 街区</button>
+      <button data-mtab="run">🎛️ 运营</button>
+      <button data-mtab="upg">🛠️ 升级</button>
       <button data-mtab="girls">💃 公关</button>
-      <button data-mtab="staff">🛡️ 员工</button>
-      <button data-mtab="street">🏙️ 街区</button>
+      <button data-mtab="staff">🛡️ 团队</button>
     </nav>
     <div id="panel"></div>
   </aside>
@@ -77,7 +74,6 @@
     <div class="cam-tools">
       <button id="zall" style="display:none">← 全景</button>
       <button id="btnLight" title="切换夜景亮度 (明亮/氛围/白昼)">💡 夜景:明亮</button>
-      <button id="btnRoof" title="切换半剖观察 / 彩色屋顶">🏠 剖面观察</button>
       <button id="btnRot" title="旋转视角 90° (R)">↻ 旋转 90°</button>
       <button id="btnCut" class="on" title="自动透视遮挡墙体">透视墙体</button>
     </div>

@@ -4,9 +4,9 @@ import {
   BARPAL, CONCEPTS, DECOR, GX, LAY, POLES, ROOMS, STY, SX, XA, XB, YA, YB, Z_SCALE, WH, SWH,
   LB, Lw, hsh, pickC,
 } from './config.js';
-import { ART_STYLES } from './themes.js';
+import { STORYBOOK_THEME } from './themes.js';
 import {
-  buildPearTreeGeom, buildStaticBikeGeom, buildStaticSedanGeom,
+  buildStorybookTreeGeom, buildStaticBikeGeom, buildStaticSedanGeom,
   makeGridPaperTexture, makeInteriorMuralTexture, makePebblePlinthTexture,
 } from './meshes3d.js';
 import { curEls, seatList, wsSpots } from './state.js';
@@ -29,10 +29,10 @@ function makeSignTexture(text, bg, fg, border = null, subText = null) {
   c.fillStyle = fg;
   c.textAlign = 'center';
   c.textBaseline = 'middle';
-  c.font = 'bold 46px "DM Sans", "PingFang SC", sans-serif';
+  c.font = 'bold 46px "Plus Jakarta Sans", "Noto Sans SC", "PingFang SC", sans-serif';
   c.fillText(text, 256, subText ? 48 : 64, 470);
   if (subText) {
-    c.font = 'bold 28px "DM Sans", "PingFang SC", sans-serif';
+    c.font = 'bold 28px "Plus Jakarta Sans", "Noto Sans SC", "PingFang SC", sans-serif';
     c.globalAlpha = 0.85;
     c.fillText(subText, 256, 94, 470);
   }
@@ -42,7 +42,7 @@ function makeSignTexture(text, bg, fg, border = null, subText = null) {
   return tex;
 }
 
-function makeRoadLabelTexture(text, bg = 'rgba(0,0,0,0)', fg = 'rgba(255,255,255,0.72)') {
+function makeRoadLabelTexture(text, bg = 'rgba(0,0,0,0)', fg = 'rgba(47, 38, 30, 0.68)') {
   const canvas = document.createElement('canvas');
   canvas.width = 512;
   canvas.height = 96;
@@ -55,7 +55,7 @@ function makeRoadLabelTexture(text, bg = 'rgba(0,0,0,0)', fg = 'rgba(255,255,255
   c.fillStyle = fg;
   c.textAlign = 'center';
   c.textBaseline = 'middle';
-  c.font = '700 34px "DM Sans", sans-serif';
+  c.font = '700 34px "Plus Jakarta Sans", "Noto Sans SC", "PingFang SC", sans-serif';
   c.fillText(text, 256, 48, 490);
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -248,14 +248,14 @@ export class World3D {
 
   _buildSlabAndRoads() {
     const g = this.staticGroup;
-    const theme = ART_STYLES[this.scene3d.artStyle || 'diorama'];
+    const theme = STORYBOOK_THEME;
     this.roadMat.color.set(theme.road);
     const W = XB - XA;
     const D = YB - YA;
     const cx = (XA + XB) / 2;
     const cz = (YA + YB) / 2;
 
-    // Diorama layered plinth
+    // Storybook layered plinth with pebbled earth & grid paper backdrop
     const groundMat = this.getMat(theme.slabTop, { rough: 0.9 });
     const ground = new THREE.Mesh(new THREE.BoxGeometry(W, 0.45, D), groundMat);
     ground.position.set(cx, -0.225, cz);
@@ -268,26 +268,22 @@ export class World3D {
     rim.position.set(cx, -0.45, cz);
     g.add(rim);
 
-    const earthMat = theme.id === 'storybook'
-      ? new THREE.MeshStandardMaterial({ map: this.pebbleTex, roughness: 0.92 })
-      : this.getMat(theme.earthRim, { rough: 0.95 });
+    const earthMat = new THREE.MeshStandardMaterial({ map: this.pebbleTex, roughness: 0.92 });
     const earth = new THREE.Mesh(new THREE.BoxGeometry(W - 0.2, 1.28, D - 0.2), earthMat);
     earth.position.set(cx, -1.16, cz);
     earth.castShadow = true;
     g.add(earth);
 
-    if (theme.id === 'storybook') {
-      const paper = new THREE.Mesh(
-        new THREE.PlaneGeometry(240, 240),
-        new THREE.MeshStandardMaterial({ map: this.gridPaperTex, roughness: 0.96 }),
-      );
-      paper.rotation.x = -Math.PI / 2;
-      paper.position.set(cx, -1.85, cz);
-      paper.receiveShadow = true;
-      g.add(paper);
-      earth.add(new THREE.LineSegments(new THREE.EdgesGeometry(earth.geometry, 25), this.inkLineMat));
-      ground.add(new THREE.LineSegments(new THREE.EdgesGeometry(ground.geometry, 25), this.inkLineMat));
-    }
+    const paper = new THREE.Mesh(
+      new THREE.PlaneGeometry(240, 240),
+      new THREE.MeshStandardMaterial({ map: this.gridPaperTex, roughness: 0.96 }),
+    );
+    paper.rotation.x = -Math.PI / 2;
+    paper.position.set(cx, -1.85, cz);
+    paper.receiveShadow = true;
+    g.add(paper);
+    earth.add(new THREE.LineSegments(new THREE.EdgesGeometry(earth.geometry, 25), this.inkLineMat));
+    ground.add(new THREE.LineSegments(new THREE.EdgesGeometry(ground.geometry, 25), this.inkLineMat));
 
     // Sidewalks & lots pads
     const swGeoms = [];
@@ -470,14 +466,13 @@ export class World3D {
       this.gateArms.push({ pivot, yMid: (ya + yb) / 2, open: 0 });
     });
 
-    // Static street props (sculpted parked cars, scooters, cones, pear/round trees, food cart, fruit stall)
-    const theme = ART_STYLES[this.scene3d.artStyle || 'diorama'];
+    // Static street props (sculpted parked cars, scooters, cones, rounded trees, food cart, fruit stall)
     const addCarGeom = (x, y, ax, c) => {
       const cg = buildStaticSedanGeom(c, ax);
       cg.translate(x, 0.04, y);
       geoms.push(cg);
     };
-    const treeProto = buildPearTreeGeom(theme.treeMode);
+    const treeProto = buildStorybookTreeGeom();
 
     DECOR.forEach((d) => {
       if (d.t === 'car') addCarGeom(d.x, d.y, d.ax, d.c);
@@ -525,27 +520,23 @@ export class World3D {
       const staticMesh = new THREE.Mesh(merged, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82 }));
       staticMesh.castShadow = true;
       staticMesh.receiveShadow = true;
-      if (theme.inkEdges) {
-        staticMesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(staticMesh.geometry, 32), this.inkLineMat));
-      }
+      staticMesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(staticMesh.geometry, 32), this.inkLineMat));
       g.add(staticMesh);
     }
   }
 
   _wallColor(l) {
-    const theme = ART_STYLES[this.scene3d.artStyle || 'diorama'];
-    if (l.kind === 'mine') return [theme.wallColor, '#EAD9BC', '#E0C4A6', '#D4B6AC'][l.decor || 0];
+    if (l.kind === 'mine') return [STORYBOOK_THEME.wallColor, '#EAD9BC', '#E0C4A6', '#D4B6AC'][l.decor || 0];
     if (l.kind === 'rival') return '#E5D3CB';
     if (l.kind === 'empty') return '#E5DEC9';
     return '#F2EBDC';
   }
 
   _floorColor(l) {
-    const theme = ART_STYLES[this.scene3d.artStyle || 'diorama'];
-    if (l.kind === 'mine') return theme.floorMine[l.decor || 0];
-    if (l.kind === 'empty') return theme.floorEmpty;
-    if (l.kind === 'rival') return theme.floorRival;
-    return l.fl || theme.floorEmpty;
+    if (l.kind === 'mine') return STORYBOOK_THEME.floorMine[l.decor || 0];
+    if (l.kind === 'empty') return STORYBOOK_THEME.floorEmpty;
+    if (l.kind === 'rival') return STORYBOOK_THEME.floorRival;
+    return l.fl || STORYBOOK_THEME.floorEmpty;
   }
 
   rebuildLot(l, G) {
@@ -553,7 +544,6 @@ export class World3D {
     if (!grp) return;
     while (grp.children.length) grp.remove(grp.children[0]);
 
-    const theme = ART_STYLES[this.scene3d.artStyle || 'diorama'];
     const cutWalls = [];
     const { x0, y0, x1, y1, L, D } = l;
     const spanX = x1 - x0;
@@ -697,21 +687,6 @@ export class World3D {
       }
     }
 
-    // Optional colorful pitched toy roof (for roofMode toggle)
-    let roofGroup = null;
-    if (!isEmpty && !l.top) {
-      roofGroup = new THREE.Group();
-      const roofCol = isMine ? l.ac : theme.roofColors[l.i % theme.roofColors.length];
-      const roofMat = this.getMat(roofCol, { rough: 0.72 });
-      const cap = new THREE.Mesh(new THREE.BoxGeometry(spanX + 0.22, 0.22, spanZ + 0.22), roofMat);
-      cap.position.set((x0 + x1) / 2, backH + 0.15, (y0 + y1) / 2);
-      const gable = new THREE.Mesh(new THREE.BoxGeometry(spanX * 0.72, 0.42, spanZ * 0.72), roofMat);
-      gable.position.set((x0 + x1) / 2, backH + 0.42, (y0 + y1) / 2);
-      roofGroup.add(cap, gable);
-      roofGroup.visible = !!(this.scene3d.roofMode && G.view !== l.i);
-      grp.add(roofGroup);
-    }
-
     // Empty lot standing sign
     if (isEmpty) {
       const [bx, by] = Lw(l, L / 2, D / 2);
@@ -724,8 +699,8 @@ export class World3D {
       board.position.set(bx, 1.05, by);
       board.castShadow = true;
       grp.add(post, board);
-      if (theme.inkEdges) this._applyInkEdges(grp);
-      this.lotMeta[l.i] = { cutWalls, roomWindows, signMat, floorMat, roofGroup, djCone: null, clubLasers: [] };
+      this._applyInkEdges(grp);
+      this.lotMeta[l.i] = { cutWalls, roomWindows, signMat, floorMat, djCone: null, clubLasers: [] };
       return;
     }
 
@@ -736,7 +711,7 @@ export class World3D {
     const interiorFX = this._buildInterior(grp, l, els, sofaColor);
 
     // Storybook hand-drawn back-wall mural (bottle racks / cafe chalkboard / mart shelves)
-    if (theme.id === 'storybook' && !l.top) {
+    if (!l.top) {
       const mKind = l.type === 'food' ? 'food' : l.type === 'mart' ? 'mart' : 'bar';
       const mw = Math.min(4.0, Math.max(1.8, L - 1.1));
       const mural = new THREE.Mesh(
@@ -752,16 +727,13 @@ export class World3D {
       facadeGroup.add(mural);
     }
 
-    if (theme.inkEdges) {
-      this._applyInkEdges(grp);
-    }
+    this._applyInkEdges(grp);
 
     this.lotMeta[l.i] = {
       cutWalls,
       roomWindows,
       signMat,
       floorMat,
-      roofGroup,
       djCone: interiorFX.djCone,
       clubLasers: interiorFX.clubLasers,
     };
@@ -1146,9 +1118,6 @@ export class World3D {
       const isOpen = lit(l);
       if (meta.floorMat && l.kind !== 'empty') {
         meta.floorMat.emissiveIntensity = isOpen ? 0.32 * Math.max(0.28, nightAmt) : 0;
-      }
-      if (meta.roofGroup) {
-        meta.roofGroup.visible = !!(this.scene3d.roofMode && G.view !== i);
       }
 
       if (meta.signMat && l.kind !== 'empty') {

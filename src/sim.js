@@ -1021,9 +1021,9 @@ function stepPed(p, dt) {
             p.budget = fair(l) * rnd(0.75, 1.6);
           } else {
             p.tm = p.ctype === 'local' ? rnd(30, 60) : p.ctype === 'tai' ? (p.trip && p.trip.n > 3 ? rnd(30, 50) : rnd(45, 75)) : rnd(40, 90);
-            G.rival[l.i].wk = (G.rival[l.i].wk || 0) + Math.round((p.tm / 60) * 400 + 60);
             const idle = l.hs.filter((h) => h.state === 'idle');
             if (idle.length && R() < 0.85) {
+              G.rival[l.i].wk = (G.rival[l.i].wk || 0) + Math.round((p.tm / 60) * 380 + 60);
               const h = pick(idle);
               freeSpot(l, h);
               h.state = 'with';
@@ -1031,6 +1031,8 @@ function stepPed(p, dt) {
               p.rh = h;
               const sd = sideOf(l, p);
               hGo(h, [[sd[0], sd[1]]], 'sit');
+            } else {
+              G.rival[l.i].wk = (G.rival[l.i].wk || 0) + Math.round((p.tm / 60) * 90 + 40);
             }
           }
         } else if (p.then === 'room') {
@@ -1378,13 +1380,13 @@ export function endDay() {
       if (l.kind !== 'rival') return;
       const r = G.rival[l.i];
       if ((r.wk || 0) > avg) {
-        r.hn = Math.min(40, r.hn + 1 + ((R() * 3) | 0));
+        r.hn = Math.min(12, r.hn + (R() < 0.65 ? 1 : 0));
         r.q = Math.min(1, (r.q || 0.5) + 0.03);
         r.pm = Math.min(1.6, (r.pm || 1) + 0.05);
       } else {
-        r.hn = Math.max(15, r.hn - 1);
+        r.hn = Math.max(3, r.hn - (R() < 0.45 ? 1 : 0));
       }
-      if (r.mode === 'agg' && G.bestRank && G.bestRank <= 3) r.touts = Math.min(5, (r.touts || 3) + 1);
+      if (r.mode === 'agg' && G.bestRank && G.bestRank <= 3) r.touts = Math.min(2, (r.touts || 1) + 1);
       r.wk = 0;
     });
     bars().forEach((l) => { l.wk = 0; });
@@ -1396,7 +1398,7 @@ export function endDay() {
       if (nm) {
         G.newRivals = G.newRivals || {};
         G.newRivals[e.i] = { n: nm, lay: pick(['mega', 'mtr', 'la']), ac: pick(['#B0457F', '#3E5F96', '#C8574B', '#5A3F7A']) };
-        G.rival[e.i] = { mode: R() < 0.5 ? 'agg' : 'con', hn: 18 + ((R() * 6) | 0), q: 0.4, pm: 1 };
+        G.rival[e.i] = { mode: R() < 0.5 ? 'agg' : 'con', hn: 3 + ((R() * 3) | 0), touts: 1, q: 0.4, pm: 1 };
         extra.push(`下周 ${where(e)} 会新开一家对手：${nm}。`);
       }
     }

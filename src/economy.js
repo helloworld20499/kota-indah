@@ -163,7 +163,7 @@ export function fireBouncer(l, id) {
 }
 
 export function rivalIntel(l) {
-  const r = G.rival[l.i] || { mode: 'con', hn: 20, q: 0.5, wk: 0 };
+  const r = G.rival[l.i] || { mode: 'con', hn: 4, q: 0.5, wk: 0 };
   const pal = BARPAL[l.lay] || { price: 55 };
   return {
     modeCn: r.mode === 'agg' ? '激进派（门口派拉客仔截胡）' : '保守派（靠门店自然客流）',
@@ -190,7 +190,17 @@ export function poachRivalHostess(rivalLot, targetBar, payFn, toastFn) {
     const star = mkHostess(6.8, true);
     star.pop = 15 + ((Math.random() * 20) | 0);
     targetBar.cands.unshift(star);
-    if (r && r.hn > 12) r.hn--;
+    if (r && r.hn > 3) {
+      r.hn--;
+      rivalLot.hn = r.hn;
+      if (rivalLot.hs && rivalLot.hs.length > r.hn) {
+        const idleIdx = rivalLot.hs.findIndex((x) => x.state === 'idle');
+        if (idleIdx >= 0) {
+          freeSpot(rivalLot, rivalLot.hs[idleIdx]);
+          rivalLot.hs.splice(idleIdx, 1);
+        }
+      }
+    }
     AU.sfx('achievement');
     toastFn(`挖角成功！${rivalLot.name} 的红牌候选「${star.name}」已到 ${targetBar.name} 应聘！`);
   } else {
@@ -222,7 +232,7 @@ export function buyoutRival(l, payFn, toastFn, rebuildFn) {
 
   const rentBase = Math.round((l.L * l.D * 26) / 10) * 10;
   const oldHs = (l.hs || []).slice();
-  const keepCount = Math.max(4, Math.floor(oldHs.length / 2));
+  const keepCount = Math.max(2, Math.min(oldHs.length, Math.ceil(oldHs.length * 0.75)));
   const inherited = oldHs.slice(0, keepCount).map((h) => Object.assign(h, {
     on: true,
     sick: false,
@@ -234,6 +244,18 @@ export function buyoutRival(l, payFn, toastFn, rebuildFn) {
     traits: h.traits || [],
     loyalUntil: G.day + 5,
   }));
+  while (inherited.length < 3) {
+    inherited.push(Object.assign(mkHostess(5.2), {
+      on: true,
+      sick: false,
+      state: 'idle',
+      with: null,
+      hidden: false,
+      todayH: 0,
+      todayFee: 0,
+      loyalUntil: G.day + 5,
+    }));
+  }
 
   Object.assign(l, {
     kind: 'mine',

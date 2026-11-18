@@ -102,12 +102,12 @@ function makeMockElement(id = '', tag = 'div') {
   };
 }
 
-const domIds = ['panel', 'panelWrap', 'sheet', 'modal', 'toast', 'hDay', 'hEv', 'hMoney', 'hMoneyChip', 'tdot', 'speed', 'zall', 'ttl', 'subttl', 'hClock', 'auM', 'auS', 'btnSkipOpen', 'world-hud', 'barPills', 'skillDock', 'liveEventCard', 'btnQual', 'btnAch', 'achCnt', 'mobTabs', 'sheetGrabber', 'artSwitch', 'btnLight', 'btnRoof'];
+const domIds = ['panel', 'panelWrap', 'sheet', 'modal', 'toast', 'hDay', 'hEv', 'hMoney', 'hMoneyChip', 'tdot', 'speed', 'zall', 'ttl', 'subttl', 'hClock', 'auM', 'auS', 'btnSkipOpen', 'world-hud', 'barPills', 'skillDock', 'liveEventCard', 'btnQual', 'btnAch', 'achCnt', 'mobTabs', 'sheetGrabber', 'btnLight'];
 const elements = new Map(domIds.map((id) => [id, makeMockElement(id)]));
 
 const storeMap = new Map();
 globalThis.window = {
-  location: { href: 'http://localhost:8173/?style=diorama', search: '?style=diorama' },
+  location: { href: 'http://localhost:8173/', search: '' },
   localStorage: {
     getItem: (k) => storeMap.get(k) ?? null,
     setItem: (k, v) => storeMap.set(k, String(v)),
@@ -128,34 +128,42 @@ globalThis.document = {
 };
 
 /* ---------- 3. Verify World3D, Themes, Ortho Picking & Actors3D ---------- */
-const { ART_STYLES, LIGHT_MODES, getInitialArtStyle, saveArtStyle, applyDomTheme } = await import('../src/themes.js');
+const { STORYBOOK_THEME, LIGHT_MODES } = await import('../src/themes.js');
 const { World3D } = await import('../src/world3d.js');
 const { Actors3D } = await import('../src/actors3d.js');
 const state = await import('../src/state.js');
 const { initSim, simHeadlessDays } = await import('../src/sim.js');
 const ui = await import('../src/ui.js');
 
-assert.equal(getInitialArtStyle(), 'diorama');
-window.location.search = '?style=storybook';
-assert.equal(getInitialArtStyle(), 'storybook');
-applyDomTheme('storybook');
-assert.equal(document.documentElement.dataset.theme, 'storybook');
-window.location.search = '?style=diorama';
-saveArtStyle('diorama');
-applyDomTheme('diorama');
-assert.equal(Object.keys(ART_STYLES).length, 2);
+assert.equal(STORYBOOK_THEME.id, 'storybook');
 assert.equal(Object.keys(LIGHT_MODES).length, 3);
 
 initSim();
 const G = state.G;
+for (const l of G.lots) {
+  if (l.kind === 'rival') {
+    assert(l.hn >= 3 && l.hn <= 5, `Expected rival ${l.name} initial hn in 3..5, got ${l.hn}`);
+    assert.equal(l.hs.length, l.hn, `Expected rival ${l.name} hs.length === hn`);
+  }
+}
+
+// Verify legacy save migration clamps inflated rival hn down to Day-appropriate 3..5
+const firstRival = G.lots.find((l) => l.kind === 'rival');
+assert(firstRival, 'Missing rival lot');
+G.rival[firstRival.i].hn = 28;
+state.save();
+assert(state.load(() => {}));
+assert(state.G.lots[firstRival.i].hn >= 3 && state.G.lots[firstRival.i].hn <= 5, 'Legacy save rival hn not clamped to 3..5');
+storeMap.clear();
+initSim();
+const G0 = state.G;
+
 const fakeScene3D = {
   scene: new THREE.Scene(),
   camera: new THREE.OrthographicCamera(-35, 35, 27, -27, -120, 320),
   controls: { target: new THREE.Vector3(17.5, 0.4, 18) },
   cutawayEnabled: true,
-  artStyle: 'diorama',
   lightMode: 'bright',
-  roofMode: false,
   getZoom() { return this.camera.zoom || 1; },
 };
 fakeScene3D.camera.zoom = 1.0;
@@ -165,12 +173,16 @@ fakeScene3D.camera.updateProjectionMatrix();
 fakeScene3D.camera.updateMatrixWorld(true);
 
 const world3d = new World3D(fakeScene3D);
-world3d.buildAll(G);
+world3d.buildAll(G0);
+
+let inkLines = 0;
+world3d.root.traverse((o) => { if (o.isLineSegments) inkLines++; });
+assert(inkLines > 10, `Expected pen-ink LineSegments in storybook scene, found ${inkLines}`);
 
 // Check every lot's floor mesh bounding box matches [x0..x1, y0..y1] within 0.05
 const bbox = new THREE.Box3();
-for (let i = 0; i < G.lots.length; i++) {
-  const l = G.lots[i];
+for (let i = 0; i < G0.lots.length; i++) {
+  const l = G0.lots[i];
   const floorMesh = world3d.lotGroups[i].children[0];
   assert(floorMesh, `Missing floor mesh on lot ${i}`);
   bbox.setFromObject(floorMesh);
@@ -189,8 +201,8 @@ for (const [ox, oy, oz] of [[58, 52, 58], [-58, 52, 58], [-58, 52, -58], [58, 52
   fakeScene3D.camera.position.set(17.5 + ox, oy, 18 + oz);
   fakeScene3D.camera.lookAt(fakeScene3D.controls.target);
   fakeScene3D.camera.updateMatrixWorld(true);
-  for (let i = 0; i < G.lots.length; i++) {
-    const l = G.lots[i];
+  for (let i = 0; i < G0.lots.length; i++) {
+    const l = G0.lots[i];
     const lcx = (l.x0 + l.x1) / 2;
     const lcz = (l.y0 + l.y1) / 2;
     pickNdc.set(lcx, 0.5, lcz).project(fakeScene3D.camera);
@@ -203,14 +215,12 @@ for (const [ox, oy, oz] of [[58, 52, 58], [-58, 52, 58], [-58, 52, -58], [58, 52
 fakeScene3D.camera.position.set(74, 52, 74);
 fakeScene3D.camera.lookAt(fakeScene3D.controls.target);
 fakeScene3D.camera.updateMatrixWorld(true);
-console.log(`[2/4] World3D lot footprints, themes & 360° ortho lot picking verified for all ${G.lots.length} lots`);
+console.log(`[2/4] World3D lot footprints, storybook outlines & 360° ortho lot picking verified for all ${G0.lots.length} lots`);
 
 function assertNoInstancedNaNs(a3d, label) {
   const meshes = [
-    a3d.shadowMesh, a3d.legLMesh, a3d.legRMesh, a3d.armLMesh, a3d.armRMesh,
-    a3d.dressMesh, a3d.coatMesh, a3d.headMesh, a3d.hairMesh,
-    a3d.paperBodyMesh, a3d.paperHeadMesh, a3d.paperHairMesh, a3d.badgeMesh,
-    a3d.carBodyMesh, a3d.carTrimMesh, a3d.motoMesh, a3d.motoDetailMesh, a3d.glowMesh,
+    a3d.shadowMesh, a3d.paperBodyMesh, a3d.paperHeadMesh, a3d.paperHairMesh,
+    a3d.badgeMesh, a3d.carBodyMesh, a3d.carTrimMesh, a3d.motoMesh, a3d.motoDetailMesh, a3d.glowMesh,
   ];
   for (const m of meshes) {
     for (let k = 0; k < m.count * 16; k++) {
@@ -221,8 +231,6 @@ function assertNoInstancedNaNs(a3d, label) {
 
 const actors3d = new Actors3D(fakeScene3D, elements.get('world-hud'));
 [
-  actors3d.legLMesh, actors3d.legRMesh, actors3d.armLMesh, actors3d.armRMesh,
-  actors3d.dressMesh, actors3d.coatMesh, actors3d.headMesh, actors3d.hairMesh,
   actors3d.paperBodyMesh, actors3d.paperHeadMesh, actors3d.paperHairMesh,
   actors3d.badgeMesh, actors3d.carBodyMesh, actors3d.motoMesh, actors3d.glowMesh,
 ].forEach((m, idx) => {
@@ -231,56 +239,46 @@ const actors3d = new Actors3D(fakeScene3D, elements.get('world-hud'));
 assert(actors3d.carTrimMesh.geometry.attributes.color != null, 'carTrimMesh missing vertex color');
 assert(actors3d.motoDetailMesh.geometry.attributes.color != null, 'motoDetailMesh missing vertex color');
 
-// Run 7-day sim & verify Actors3D across both Art Styles, Roof Mode, Afternoon, Night, Rain, and Raid
+// Run 7-day sim & verify Actors3D across Afternoon, Night, Rain, and Raid
 const simSummary = simHeadlessDays(7);
 const G2 = state.G;
 assert(Number.isFinite(G2.money), 'G.money became non-finite!');
 
 for (const tc of [
-  { artStyle: 'diorama', roofMode: false, t: 14.5 * 60, rain: false, raid: 0, view: 1 },
-  { artStyle: 'diorama', roofMode: true, t: 22.0 * 60, rain: true, raid: 22.5 * 60, view: null },
-  { artStyle: 'storybook', roofMode: false, t: 22.0 * 60, rain: true, raid: 22.5 * 60, view: null },
+  { t: 14.5 * 60, rain: false, raid: 0, view: 1 },
+  { t: 22.0 * 60, rain: true, raid: 22.5 * 60, view: null },
 ]) {
-  fakeScene3D.artStyle = tc.artStyle;
-  fakeScene3D.roofMode = tc.roofMode;
   G2.t = tc.t;
   G2.ev.rain = tc.rain;
   G2.raidUntil = tc.raid;
   G2.view = tc.view;
-  world3d.buildAll(G2);
   world3d.updateDynamic(G2, 0.016);
   actors3d.update(G2, 0.016);
-  assertNoInstancedNaNs(actors3d, `${tc.artStyle}/roof=${tc.roofMode}`);
-
-  if (tc.artStyle === 'diorama') {
-    assert(actors3d.dressMesh.visible && !actors3d.paperBodyMesh.visible, 'Expected clay layer visible and paper layer hidden');
-    assert(actors3d.dressMesh.count + actors3d.coatMesh.count > 0, 'Expected 3D clay actors in diorama mode');
-    assert.equal(actors3d.paperBodyMesh.count, 0, 'Unexpected 2.5D paper actors in diorama mode');
-    if (tc.roofMode) {
-      assert(world3d.lotMeta.some((m) => m?.roofGroup?.visible), 'Expected roofGroup visible when roofMode=true in overview');
-    }
-  } else {
-    let inkLines = 0;
-    world3d.root.traverse((o) => { if (o.isLineSegments) inkLines++; });
-    assert(inkLines > 10, `Expected pen-ink LineSegments in storybook mode, found ${inkLines}`);
-    assert(!actors3d.dressMesh.visible && actors3d.paperBodyMesh.visible, 'Expected paper layer visible and clay layer hidden');
-    assert(actors3d.paperBodyMesh.count > 0, 'Expected 2.5D paper-doll actors in storybook mode');
-    assert.equal(actors3d.dressMesh.count + actors3d.coatMesh.count, 0, 'Unexpected 3D clay actors in storybook mode');
-  }
+  assertNoInstancedNaNs(actors3d, `t=${tc.t}`);
+  assert(actors3d.paperBodyMesh.count > 0, 'Expected 2.5D paper-doll actors');
 }
+console.log(`[3/4] Actors3D 2.5D paper dolls, rival balance (3-5), instanceColor & NaN checks OK (sim: ${simSummary.length} days)`);
 
-fakeScene3D.artStyle = 'diorama';
-fakeScene3D.roofMode = false;
-world3d.buildAll(G2);
-console.log(`[3/4] Actors3D dual styles, roofMode, instanceColor & NaN checks OK (sim: ${simSummary.length} days)`);
-
-/* ---------- 4. Verify UI Rendering & Gameplay Economy/Events ---------- */
+/* ---------- 4. Verify UI Rendering, Numeric Readouts & Gameplay Economy/Events ---------- */
 const econ = await import('../src/economy.js');
 const evMod = await import('../src/events.js');
 const { mkHostess, placeH } = state;
 
+const panelEl = elements.get('panel');
+const assertPanelValid = (label) => {
+  assert(panelEl.innerHTML.length > 80, `Panel HTML too short in ${label}`);
+  assert(!panelEl.innerHTML.includes('NaN'), `Found NaN in panel HTML (${label})`);
+  assert(!panelEl.innerHTML.includes('undefined'), `Found undefined in panel HTML (${label})`);
+};
+
 G2.view = null;
-ui.renderPanel();
+for (const st of ['mine', 'empty', 'rival']) {
+  G2.streetTab = st;
+  ui.renderPanel();
+  assertPanelValid(`street:${st}`);
+}
+assert(panelEl.innerHTML.includes('公关'), 'Missing rival hostess count in street rival panel');
+
 const myBars = G2.lots.filter((l) => l.kind === 'mine');
 if (myBars.length) {
   const b = myBars[0];
@@ -310,6 +308,7 @@ if (myBars.length) {
   G2.money = 200000;
   assert(econ.buyoutRival(rival, pay, noop, (lot) => world3d.rebuildLot(lot, G2)));
   assert.equal(rival.kind, 'mine');
+  assert(rival.hostesses.length >= 3, 'Expected >= 3 hostesses after rival buyout');
   assert(Number.isFinite(rival.rent) && Number.isFinite(rival.loc));
   state.save();
   assert(state.load(() => {}));
@@ -328,9 +327,19 @@ if (myBars.length) {
   bAfterLoad._g.pop();
 
   state.G.view = bAfterLoad.i;
-  for (const tab of ['run', 'girls', 'scout', 'mkt']) {
+  for (const tab of ['run', 'upg', 'girls', 'scout', 'mkt']) {
     state.G.tab = tab;
-    ui.renderPanel();
+    if (tab === 'girls') {
+      state.G.girlSub = 'roster';
+      ui.renderPanel();
+      assertPanelValid('bar:girls:roster');
+      state.G.girlSub = 'cands';
+      ui.renderPanel();
+      assertPanelValid('bar:girls:cands');
+    } else {
+      ui.renderPanel();
+      assertPanelValid(`bar:${tab}`);
+    }
   }
 }
 ui.showBriefModal(['测试简报']);
@@ -424,9 +433,11 @@ for (let d = 0; d < 14; d++) {
     });
   });
   assertNoInstancedNaNs(actors3d, `14-day stress day ${d + 1}`);
+  curG.lots.filter((l) => l.kind === 'rival').forEach((rv) => {
+    assert(rv.hn >= 3 && rv.hn <= 12, `Rival ${rv.name} hn out of balanced range 3..12: ${rv.hn}`);
+  });
   if (d < 13) {
     nextDay();
-    fakeScene3D.artStyle = d % 2 === 0 ? 'storybook' : 'diorama';
     world3d.buildAll(state.G);
   }
 }

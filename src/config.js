@@ -136,12 +136,12 @@ export const SPECIAL_MENU = {
 };
 
 export const TRAITS = {
-  drinker: { id: 'drinker', cn: '酒神', col: '#E8B959', desc: '陪酒时点酒频率 +30%' },
-  singer: { id: 'singer', cn: '歌姬', col: '#A87CE8', desc: '包厢转化 +30%，包厢满意度 +0.6' },
-  sweet: { id: 'sweet', cn: '甜心', col: '#FF6F8F', desc: '回头客转化 +35%，加钟概率 +15%' },
-  polyglot: { id: 'polyglot', cn: '多语通', col: '#47C9B0', desc: '台客与中客选人好感 +1.4' },
-  stamina: { id: 'stamina', cn: '耐力王', col: '#5EA8E8', desc: '体力消耗 -30%' },
-  ace: { id: 'ace', cn: '镇店花', col: '#FF5C54', desc: '上岗时本店进店率 +6%，稳住团队士气' },
+  drinker: { id: 'drinker', cn: '酒神', col: '#9E6214', desc: '陪酒时点酒频率 +30%' },
+  singer: { id: 'singer', cn: '歌姬', col: '#6B4280', desc: '包厢转化 +30%，包厢满意度 +0.6' },
+  sweet: { id: 'sweet', cn: '甜心', col: '#B5362F', desc: '回头客转化 +35%，加钟概率 +15%' },
+  polyglot: { id: 'polyglot', cn: '多语通', col: '#1F6E5A', desc: '台客与中客选人好感 +1.4' },
+  stamina: { id: 'stamina', cn: '耐力王', col: '#265385', desc: '体力消耗 -30%' },
+  ace: { id: 'ace', cn: '镇店花', col: '#A82E26', desc: '上岗时本店进店率 +6%，稳住团队士气' },
 };
 export const TRAIT_KEYS = Object.keys(TRAITS);
 
@@ -414,7 +414,12 @@ export const hsh = (n) => {
   return s - Math.floor(s);
 };
 export const uid = () => Math.random().toString(36).slice(2, 8);
-export const fm = (n) => (n < 0 ? '−' : '') + 'Rp ' + Math.abs(Math.round(n)).toLocaleString('en-US') + 'k';
+export const fm = (n) => (n < 0 ? '-' : '') + 'Rp ' + Math.abs(Math.round(n)).toLocaleString('en-US') + 'k';
+export const fmShort = (n) => {
+  const s = n < 0 ? '-' : '';
+  const a = Math.abs(n);
+  return a >= 1000 ? `${s}${(a / 1000).toFixed(1).replace(/\.0$/, '')}M` : `${s}${Math.round(a)}k`;
+};
 export const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 export const wday = (d) => (d - 1) % 7;
 export const tierOf = (h) => (h.pop >= 100 ? 2 : h.pop >= 40 ? 1 : 0);
@@ -423,7 +428,7 @@ export const FEE = (l) => 8000 + 1500 * l.rooms;
 export const onDuty = (h) => h.on && !h.sick;
 export const activeH = (l) => l.hostesses.filter(onDuty);
 export const effAtt = (h) => clamp(h.att - (h.en < 20 ? 4 : h.en < 40 ? 2 : 0) + (h.mood >= 75 ? 1 : h.mood < 30 ? -1 : 0), 1, 10);
-export const moodTx = (m) => (m >= 70 ? ['开心', '#3DD6A5'] : m >= 40 ? ['一般', '#A79B8C'] : ['不爽', '#FF5C54']);
+export const moodTx = (m) => (m >= 70 ? ['开心', '#1F6E5A'] : m >= 40 ? ['一般', '#6E5F50'] : ['不爽', '#B5362F']);
 export const hWage = (h) => Math.round((80 + 22 * h.looks + 12 * h.bs + 8 * h.ps + 10 * h.att) / 10) * 10;
 
 export const Lw = (l, u, v) =>

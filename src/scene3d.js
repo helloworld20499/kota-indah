@@ -5,19 +5,17 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { XA, XB, YA, YB, Lw, clamp } from './config.js';
-import { ART_STYLES, LIGHT_MODES } from './themes.js';
+import { LIGHT_MODES, STORYBOOK_THEME } from './themes.js';
 
 const BASE_H = 54;
 
 export class Scene3D {
-  constructor(container, artStyle = 'diorama') {
+  constructor(container) {
     this.container = container;
-    this.artStyle = ART_STYLES[artStyle] ? artStyle : 'diorama';
     this.lightMode = 'bright';
-    this.roofMode = false;
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(ART_STYLES[this.artStyle].dayBg);
+    this.scene.background = new THREE.Color(STORYBOOK_THEME.dayBg);
     this.scene.fog = null;
 
     const w = container.clientWidth || 800;
@@ -119,10 +117,6 @@ export class Scene3D {
 
   getZoom() {
     return this.camera.zoom || 1;
-  }
-
-  setArtStyle(styleId) {
-    if (ART_STYLES[styleId]) this.artStyle = styleId;
   }
 
   setLightMode(mode) {
@@ -262,7 +256,7 @@ export class Scene3D {
   }
 
   updateLighting(G) {
-    const theme = ART_STYLES[this.artStyle];
+    const theme = STORYBOOK_THEME;
     const lm = LIGHT_MODES[this.lightMode] || LIGHT_MODES.bright;
     const h = this.lightMode === 'day' ? 14.5 : G.t / 60;
     const rain = !!(G.ev && G.ev.rain);

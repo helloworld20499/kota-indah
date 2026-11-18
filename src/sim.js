@@ -10,6 +10,16 @@ import {
   registerGroupPed, restLift, runtime, save, scoutDay, seatList, stairFoot, stairTop, takeSpot,
   toutZone, unregisterGroupPed,
 } from './state.js';
+import {
+  SLOT_LEVELS, WHALE_MAP, activeLegendAuras, compileCustomerVoices, createEmptyVoices,
+  evalBarSynergy, findLuredWhale, girlMilestoneBonuses, rarityOf, whalePerkBonuses,
+} from './codex.js';
+
+function incVoice(l, key, n = 1) {
+  if (!l || !l.today) return;
+  l.today.voices = l.today.voices || createEmptyVoices();
+  l.today.voices[key] = (l.today.voices[key] || 0) + n;
+}
 
 let hooks = {
   toast: () => {},
@@ -48,8 +58,12 @@ export function skillActive(l, id) {
   return !!(l && l.skills && l.skills[id] && G.t < l.skills[id].activeUntil);
 }
 
-export const barCogs = (l) => conceptOf(l).cogs;
-export const fair = (l) => 30 + 8 * l.decor + (l.dj ? 5 : 0);
+export const barCogs = (l) => Math.max(6, conceptOf(l).cogs - activeLegendAuras(l).cogsSave);
+export const fair = (l) => {
+  const syn = evalBarSynergy(l);
+  const aura = activeLegendAuras(l);
+  return Math.round((30 + 8 * l.decor + (l.dj || aura.freeDj ? 5 : 0)) * syn.mods.fairMul * aura.fairMul);
+};
 
 export function dimSum(arr, f) {
   if (!arr || !arr.length) return 0;
@@ -66,30 +80,38 @@ export const priceF = (l) => clamp(1.6 - (0.8 * l.price) / fair(l), 0.08, 1.3);
 export function enterProb(l, ct) {
   if (skillActive(l, 'lowProfile')) return 0;
   if (G.t < (l.lockUntil || 0)) return 0;
+  const syn = evalBarSynergy(l);
+  const aura = activeLegendAuras(l);
+  const gMile = girlMilestoneBonuses(G.codexGirls);
+  const wPerk = whalePerkBonuses(G.codexWhales);
   const hs = l.hostesses.filter((h) => onDuty(h) && !(h.state === 'out' && h.until >= T_END - 10));
   let match = 0;
   let aceBonus = 0;
   for (let i = 0; i < hs.length; i++) {
     if (CT[ct].body === 'any' || hs[i].body === CT[ct].body) match++;
     if (hasTrait(hs[i], 'ace')) aceBonus += 0.06;
+    if (hasTrait(hs[i], 'diva') && !syn.mods.twoQueensClash) aceBonus += 0.05;
+    if (ct === 'local' && hasTrait(hs[i], 'rowdy') && !syn.mods.disableNobleRowdy) aceBonus += 0.03;
   }
   const appeal = hs.length ? 1 + 0.05 * Math.min(8, match) : 0.5;
   const cMul = conceptOf(l).enterMul[ct] || 1;
   const happyMul = skillActive(l, 'happyHour') ? 1.35 : 1;
   const achMul = G.achievements?.includes('first_star') ? 1.03 : 1;
+  const synMul = (ct === 'tai' || ct === 'cn' ? syn.mods.taiCnEnterMul * aura.taiCnMul : 1) * (ct === 'tai' ? wPerk.taiEnterMul : 1);
+  const rainShield = G.ev?.rain && aura.ignoreRain ? 1.45 : 1;
   const base =
     0.05 +
     0.03 * l.decor +
     0.025 * l.sign +
     0.012 * mktPower(l) +
     (l.rep - 3) * 0.05 +
-    (l.dj ? 0.06 : 0) +
+    (l.dj || aura.freeDj ? 0.06 : 0) +
     0.008 * Math.min(10, hs.length) +
     aceBonus;
   return clamp(
-    base * appeal * l.loc * priceF(l) * (ct === 'local' ? 1.1 : 1) * (l.star ? 1.15 : 1) * cMul * happyMul * achMul,
+    base * appeal * l.loc * priceF(l) * (ct === 'local' ? 1.1 : 1) * (l.star ? 1.15 : 1) * cMul * happyMul * achMul * synMul * aura.enterMul * gMile.enterMul * rainShield,
     0,
-    0.88,
+    0.9,
   );
 }
 
@@ -98,8 +120,9 @@ export const seated = (l) => l._g.filter((p) => p.st === 'sit').length;
 export function buzz() {
   let b = 1;
   bars().forEach((l) => {
-    const signMul = conceptOf(l).buzzMul || 1;
-    b += 0.06 * l.sign * signMul + 0.03 * mktPower(l) + Math.max(0, l.rep - 3) * 0.05 + (l.dj ? 0.3 : 0);
+    const signMul = (conceptOf(l).buzzMul || 1) * activeLegendAuras(l).signBuzzMul;
+    const hasDj = l.dj || activeLegendAuras(l).freeDj;
+    b += 0.06 * l.sign * signMul + 0.03 * mktPower(l) + Math.max(0, l.rep - 3) * 0.05 + (hasDj ? 0.3 : 0);
   });
   if (G.flyers) b += 0.4;
   if (G.ev && G.ev.bloggerBoost) b += 0.35;
@@ -126,7 +149,15 @@ export function evList() {
   if (e.ramadan) o.push(['斋月期', `客流 ×0.5 · ${e.ramadan}天`, '#2D7A66', '🌙']);
   if (e.payday) o.push(['发薪日', '土客 ×1.2', '#B87D1E', '💵']);
   if (e.bloggerBoost) o.push(['探店热', '人气 +35%', '#C86D2D', '📱']);
-  if (e.razia && e.rumor && !e.raziaDone) o.push(['有风声', '警惕临检', '#B5362F', '🚨']);
+  if (e.razia && e.rumor && !e.raziaDone) {
+    if (e.exactRaid) {
+      const hh = String(Math.floor(e.razia / 60) % 24).padStart(2, '0');
+      const mm = String(Math.round(e.razia % 60)).padStart(2, '0');
+      o.push(['警司线报', `${hh}:${mm} 准时临检`, '#B5362F', '🚨']);
+    } else {
+      o.push(['有风声', '警惕临检', '#B5362F', '🚨']);
+    }
+  }
   return o;
 }
 
@@ -149,19 +180,34 @@ export function checkGoals() {
   return got;
 }
 
-export function choiceScore(p, h) {
+export function choiceScore(p, h, l = null) {
+  const syn = l ? evalBarSynergy(l) : null;
   const wantBody = CT[p.ctype].body;
   const bodyMod = wantBody === 'any' ? 0.8 : h.body === wantBody ? 1.8 : -2.2;
   const persScore = h.pers === p.prefPers ? h.ps : h.ps * 0.45;
   const poly = hasTrait(h, 'polyglot') && (p.ctype === 'tai' || p.ctype === 'cn') ? 1.2 : 0;
-  return 0.62 * h.looks + 0.38 * persScore + bodyMod + (h.pop != null ? TIERB[tierOf(h)] : 0) + poly;
+  const noble = hasTrait(h, 'noble') && !syn?.mods?.disableNobleRowdy && (p.ctype === 'tai' || p.ctype === 'cn') ? 1.2 : 0;
+  const balance = syn?.mods?.choiceBonus || 0;
+  return 0.62 * h.looks + 0.38 * persScore + bodyMod + (h.pop != null ? TIERB[tierOf(h)] : 0) + poly + noble + balance;
 }
 
 export function finalSat(p, h, l) {
+  const syn = evalBarSynergy(l);
+  const aura = activeLegendAuras(l);
   const platterB = l.menu && l.menu.platter ? 0.4 : 0;
   const singerB = p.act === 'room' && hasTrait(h, 'singer') ? 0.6 : 0;
+  const clashPenalty = syn.mods.satPenalty + syn.mods.attPenalty * 0.35;
   return clamp(
-    0.75 * choiceScore(p, h) + 0.25 * effAtt(h) + 0.15 * l.decor + platterB + singerB + (p.act === 'room' && l.dj ? 0.4 : 0) - (p.waited ? 0.6 : 0) - (h.att < 4 ? 0.8 : 0),
+    0.75 * choiceScore(p, h, l) +
+      0.25 * effAtt(h) +
+      0.15 * l.decor +
+      platterB +
+      singerB +
+      aura.satBonus +
+      (p.act === 'room' && (l.dj || aura.freeDj) ? 0.4 : 0) -
+      (p.waited ? 0.6 : 0) -
+      (h.att < 4 ? 0.8 : 0) -
+      clashPenalty,
     0,
     10,
   );
@@ -335,12 +381,13 @@ export function scheduleRegs() {
   if (G.defDay !== G.day) {
     G.defDay = G.day;
     G.defect = 0;
+    const defMul = whalePerkBonuses(G.codexWhales).regDefectMul;
     G.regs = G.regs.filter((r) => {
       const b = G.lots[r.bar];
       if (!b || b.kind !== 'mine') return true;
       const o = b.doors[0].out;
       const n = G.lots.filter((x) => x.kind === 'rival' && x.mode === 'agg' && Math.hypot(x.doors[0].out[0] - o[0], x.doors[0].out[1] - o[1]) < 16).length;
-      if (n && R() < Math.min(0.25, 0.06 * n)) {
+      if (n && R() < Math.min(0.25, 0.06 * n) * defMul) {
         G.defect++;
         return false;
       }
@@ -355,6 +402,45 @@ export function scheduleRegs() {
     if (r.daily && R() > r.pr) return;
     const a = r.type === 'local' ? rnd(17.5, 22.5) : r.type === 'tai' ? rnd(19, 23.5) : rnd(18.5, 23);
     r._at = a * 60;
+  });
+}
+
+export function spawnWhale(wv) {
+  const l = G.lots[wv.bar];
+  const wDef = WHALE_MAP[wv.id];
+  if (!l || l.kind !== 'mine' || !wDef) return;
+  AU.sfx('notification-ding');
+  const fake = { bar: wv.bar, id: 'whale_' + wDef.id + '_' + G.day };
+  const st = l.doors.map((d) => d.st).find((s) => s >= 2) ?? l.st;
+  const o = R() < 0.5;
+  const sx = GX + 0.45;
+  const xn = st === 3 ? 47.9 : st === 4 ? -9.4 : -0.4;
+  const route = uRoute(sx, 30.5, o, xn, st === 3 ? 3 : st === 4 ? 4 : 2, YA - 0.5);
+  for (let i = 0; i < wDef.n; i++) {
+    const rt = route.map((q) => q.slice());
+    rt[0][1] += 0.7 * i;
+    const p = mkPed(rt, wDef.ctype, {
+      gid: fake.id,
+      sp: 0.92,
+      reg: fake,
+      whale: wv,
+      thirst: 1.4,
+      shirt: wDef.shirt,
+      hair: wDef.hair,
+      skin: wDef.skin,
+    });
+    G.peds.push(p);
+    registerGroupPed(p);
+  }
+  G.cars.push({
+    x: 54.6,
+    y: 32,
+    sp: 3.1,
+    moto: false,
+    vipCar: true,
+    c: '#E2B24A',
+    route: [[54.6, 26.8], [GX - 0.5, 26.8], [GX - 0.5, 18], [54.6, 9.4], [54.6, YA - 1.5]],
+    ri: 0,
   });
 }
 
@@ -492,7 +578,8 @@ export function raid() {
     if (l.kind !== 'mine' && l.kind !== 'rival') return;
     if (l.kind === 'mine' && skillActive(l, 'lowProfile')) {
       // Dodged! Low fee only, no kickout
-      const smallFine = Math.round((1500 + 100 * activeH(l).length) * 0.15 * achReduce);
+      const fineMul = activeLegendAuras(l).raidFineMul;
+      const smallFine = Math.round((1500 + 100 * activeH(l).length) * 0.15 * achReduce * fineMul);
       l.today.fine = (l.today.fine || 0) + smallFine;
       fine += smallFine;
       dodgedCount++;
@@ -529,7 +616,8 @@ export function raid() {
       p.done = true;
     });
     if (l.kind === 'mine') {
-      const f = Math.round((1500 + 100 * activeH(l).length) * achReduce);
+      const fineMul = activeLegendAuras(l).raidFineMul;
+      const f = Math.round((1500 + 100 * activeH(l).length) * achReduce * fineMul);
       l.today.fine = (l.today.fine || 0) + f;
       fine += f;
     }
@@ -596,7 +684,13 @@ export function consider(p, l, d) {
         p.thirst *
         far;
   }
-  if (!go) return;
+  if (!go) {
+    if (l.kind === 'mine' && !p.reg && !p.tl && priceF(l) < 0.72) {
+      const k = p.ctype === 'local' ? 'priceSkipLocal' : p.ctype === 'tai' ? 'priceSkipTai' : 'priceSkipCn';
+      incVoice(l, k);
+    }
+    return;
+  }
 
   for (let i = 0; i < grp.length; i++) {
     if (grp[i].tl) grp[i].tl = grp[i].tl.filter((idx) => idx !== l.i);
@@ -637,12 +731,14 @@ export function consider(p, l, d) {
       for (let i = 0; i < grp.length; i++) seatRival(grp[i], r, r.doors[0], rf);
       bubble(p, `被 ${r.name} 拉走`, '#FF5C54');
       l.today.stolen += grp.length;
+      incVoice(l, 'stolen', grp.length);
       return;
     }
   }
 
   if (free.length < grp.length) {
     l.today.turned += grp.length;
+    incVoice(l, 'seatFull', grp.length);
     l.rep = Math.max(1, l.rep - 0.004);
     bubble(p, '满座', '#A79B8C');
     if (forced) p.reg._miss = true;
@@ -669,19 +765,36 @@ export function consider(p, l, d) {
 }
 
 export function startSession(p, l, best, pk, act) {
+  const syn = evalBarSynergy(l);
+  const aura = activeLegendAuras(l);
+  const gMile = girlMilestoneBonuses(G.codexGirls);
+  const wPerk = whalePerkBonuses(G.codexWhales);
   const hours = pk.h;
   const paid = pk.paid || 1;
+  const isCenter = rarityOf(best).r === 5 || hasTrait(best, 'diva');
+  const rarityFeeMul =
+    rarityOf(best).feeMul *
+    (isCenter ? syn.mods.centerFeeMul : 1) *
+    (act === 'room' ? aura.roomFeeMul : 1) *
+    gMile.feeMul *
+    wPerk.feeMul;
   const feeMul = act === 'room' ? conceptOf(l).roomPriceMul : 1;
-  const fee = Math.round(pk.fee * feeMul);
+  const fee = Math.round(pk.fee * feeMul * rarityFeeMul);
   G.money += fee;
   AU.sfx(paid >= 4 ? 'coin-double' : 'coin-collect', 500);
   l.today.hfee += fee;
   l.today.hours += hours;
   best.todayH += hours;
   best.todayFee = (best.todayFee || 0) + fee;
-  const enCost = (8 + paid * 5.5) * (act === 'room' ? 1.15 : 1) * (hasTrait(best, 'stamina') ? 0.7 : 1);
+  const enCost =
+    (8 + paid * 5.5) *
+    (act === 'room' ? 1.15 : 1) *
+    (hasTrait(best, 'stamina') ? 0.7 : 1) *
+    syn.mods.enDrainMul *
+    aura.enDrainMul;
   best.en = Math.max(0, best.en - Math.min(60, enCost));
-  best.pop += paid >= 4 ? 2 : 1;
+  const divaPop = hasTrait(best, 'diva') && !syn.mods.twoQueensClash ? 1.5 : 1;
+  best.pop += Math.round((paid >= 4 ? 2 : 1) * divaPop);
   freeSpot(l, best);
   best.state = act;
   best.with = p;
@@ -717,11 +830,13 @@ export function startSession(p, l, best, pk, act) {
 }
 
 function pickHostess(p, l) {
+  const syn = evalBarSynergy(l);
+  const aura = activeLegendAuras(l);
   const idle = l.hostesses.filter((h) => h.state === 'idle' && onDuty(h) && !h.hidden && h.en >= 10);
   if (!idle.length) {
     if (p.phase !== 'wait') {
       p.phase = 'wait';
-      p.patience = rnd(25, 40) * (l.menu?.platter ? 1.35 : 1);
+      p.patience = rnd(25, 40) * (l.menu?.platter ? 1.35 : 1) * aura.waitMul;
       p.waited = true;
       bubble(p, '等公关…', '#A79B8C');
     }
@@ -731,18 +846,20 @@ function pickHostess(p, l) {
   let best = null;
   let bestPick = -99;
   idle.forEach((h) => {
-    const base = choiceScore(p, h) + (p.reg && p.reg.hid === h.id ? 1 : 0);
+    const base = choiceScore(p, h, l) + (p.reg && p.reg.hid === h.id ? 1 : 0);
     const pickVal = base + rnd(-0.35, 0.35);
     if (pickVal > bestPick) {
       bestPick = pickVal;
       best = h;
     }
   });
-  const bc = choiceScore(p, best) + (p.reg && p.reg.hid === best.id ? 1 : 0);
+  const bc = choiceScore(p, best, l) + (p.reg && p.reg.hid === best.id ? 1 : 0);
   if (bc < CT[p.ctype].th) {
     p.phase = 'solo';
     p.tm = p.ctype === 'local' ? rnd(30, 60) : rnd(15, 30);
     l.today.nolike++;
+    if (CT[p.ctype].body === 'slim') incVoice(l, 'noSlim');
+    else if (CT[p.ctype].body === 'curvy') incVoice(l, 'noCurvy');
     bubble(p, '没合眼缘', '#A79B8C');
     return;
   }
@@ -751,21 +868,83 @@ function pickHostess(p, l) {
   let act = 'with';
   const showMul = skillActive(l, 'showtime') ? 1.5 : 1;
   const singerMul = hasTrait(best, 'singer') ? 1.3 : 1;
+  const hasDj = l.dj || aura.freeDj;
   if (G.t + pk.h * 60 > T_END && (T_END - G.t <= 75 || (pk.paid >= 3 && R() < 0.55))) {
     act = 'out';
-  } else if (R() < c.room * (l.dj ? 1.35 : 1) * showMul * singerMul) {
+  } else if (R() < c.room * (hasDj ? 1.35 : 1) * showMul * singerMul * syn.mods.roomProbMul) {
     act = 'room';
-  } else if (pk.h >= 3 && R() < c.out) {
+  } else if (pk.h >= 3 && R() < c.out + aura.outBonus) {
     act = 'out';
   }
   if (act === 'room' && l.roomsUsed >= ROOMS[l.rooms]) {
     bubble(p, '包厢满了', '#FF5C54');
     l.today.roomfull++;
+    incVoice(l, 'roomFull');
     l.rep = Math.max(1, l.rep - 0.01);
     leaveBar(p);
     return;
   }
   startSession(p, l, best, pk, act);
+}
+
+export function whaleDecide(p, l) {
+  const wv = p.whale;
+  const wDef = WHALE_MAP[wv.id];
+  if (wv.done || !wDef) return;
+  const mem = G.peds.filter((q) => q.whale === wv && q.bar === l.i);
+  if (mem.length < wDef.n || mem.some((q) => q.st !== 'sit')) {
+    p.ct = 2;
+    return;
+  }
+  wv.done = true;
+  const ok = l.hostesses
+    .filter((h) => h.state === 'idle' && onDuty(h) && !h.hidden && h.en >= 10)
+    .sort((a, b) => choiceScore(p, b, l) - choiceScore(p, a, l));
+  if (ok.length >= Math.min(wDef.n, 2)) {
+    const maxH = Math.max(1, (T_NEXT_OPEN - G.t) / 60);
+    const pairCount = Math.min(ok.length, mem.length);
+    for (let i = 0; i < pairCount; i++) {
+      const q = mem[i];
+      const vipPk = choosePkg(q, Math.max(8.8, choiceScore(q, ok[i], l) + 1.8), l, ok[i]);
+      startSession(q, l, ok[i], makePkg(Math.max(4, vipPk.paid), maxH), 'with');
+    }
+    for (let i = pairCount; i < mem.length; i++) {
+      mem[i].phase = 'solo';
+      mem[i].tm = 90;
+    }
+    const aura = activeLegendAuras(l);
+    const wPerk = whalePerkBonuses(G.codexWhales);
+    const ktvBonus = conceptOf(l).vipMul || 1;
+    const achBonus = G.achievements?.includes('vip_king') ? 1.15 : 1;
+    const tip = Math.round(wDef.tip * ktvBonus * achBonus * aura.vipTipMul * wPerk.vipTipMul);
+    G.money += tip;
+    l.today.hfee += tip;
+    l.rep = Math.min(5, l.rep + 0.25);
+    G.stats.totalVipsOk = (G.stats.totalVipsOk || 0) + 1;
+    G.codexWhales = G.codexWhales || {};
+    const cur = G.codexWhales[wDef.id] || { visits: 0, unlocked: false };
+    cur.visits = (cur.visits || 0) + 1;
+    G.codexWhales[wDef.id] = cur;
+    bubble(p, `🎩 ${wDef.name}豪掷 ${fm(tip)}!`, '#E8B959');
+    if (!cur.unlocked && cur.visits >= 3) {
+      cur.unlocked = true;
+      AU.sfx('achievement');
+      hooks.onChampagne(l, p);
+      hooks.toast(`🎩 金主【${wDef.title} · ${wDef.name}】满 3 次收录！永久解锁：${wDef.perkCn}`);
+      checkAchievements();
+    } else {
+      hooks.toast(`🎩 ${wDef.title} ${wDef.name} 捧场 ${l.name}（${cur.visits}/3），小费 ${fm(tip)}！`);
+    }
+  } else {
+    mem.forEach((q) => {
+      q.phase = 'solo';
+      q.tm = rnd(5, 12);
+    });
+    l.rep = Math.max(1, l.rep - 0.15);
+    bubble(p, '人手不够…', '#FF5C54');
+    AU.sfx('error-soft-thud');
+    hooks.toast(`${wDef.title} ${wDef.name} 见空余公关不足，喝完小酒便离席了`);
+  }
 }
 
 function vipDecide(p, l) {
@@ -779,16 +958,18 @@ function vipDecide(p, l) {
   v.done = true;
   const ok = l.hostesses
     .filter((h) => h.state === 'idle' && onDuty(h) && !h.hidden && h.en >= 10 && (v.body === 'any' || h.body === v.body) && (v.pers === 'any' || h.pers === v.pers))
-    .sort((a, b) => choiceScore(p, b) - choiceScore(p, a));
+    .sort((a, b) => choiceScore(p, b, l) - choiceScore(p, a, l));
   if (ok.length >= v.n) {
     const maxH = Math.max(1, (T_NEXT_OPEN - G.t) / 60);
     mem.forEach((q, i) => {
-      const vipPk = choosePkg(q, Math.max(8.8, choiceScore(q, ok[i]) + 1.8), l, ok[i]);
+      const vipPk = choosePkg(q, Math.max(8.8, choiceScore(q, ok[i], l) + 1.8), l, ok[i]);
       startSession(q, l, ok[i], makePkg(Math.max(4, vipPk.paid), maxH), 'with');
     });
     const ktvBonus = conceptOf(l).vipMul || 1;
     const achBonus = G.achievements?.includes('vip_king') ? 1.15 : 1;
-    const tip = Math.round(3000 * ktvBonus * achBonus);
+    const aura = activeLegendAuras(l);
+    const wPerk = whalePerkBonuses(G.codexWhales);
+    const tip = Math.round(3000 * ktvBonus * achBonus * aura.vipTipMul * wPerk.vipTipMul);
     G.money += tip;
     l.today.hfee += tip;
     l.rep = Math.min(5, l.rep + 0.25);
@@ -810,19 +991,24 @@ function vipDecide(p, l) {
 }
 
 export function review(p, h, l, s) {
-  const ea = effAtt(h);
-  const t = ea >= 8 ? '服务很贴心' : ea >= 6 ? '挺会聊天' : ea >= 4 ? '一般般' : '态度有点冷';
+  const syn = evalBarSynergy(l);
+  const aura = activeLegendAuras(l);
+  const wPerk = whalePerkBonuses(G.codexWhales);
+  const ea = Math.max(1, effAtt(h) - syn.mods.attPenalty);
+  const t = ea >= 8 ? '服务很贴心' : ea >= 6 ? '挺会聊天' : ea >= 4 ? '一般般' : '冷淡了些';
   const popDelta = ea >= 8 && s >= 7 ? 3 : ea >= 6 && s >= 5.8 ? 2 : ea >= 4 && s >= 4.8 ? 1 : ea <= 3 && s < 4.5 ? -1 : 0;
   h.pop = Math.max(0, (h.pop || 0) + popDelta);
   h.mood = clamp(h.mood + (s >= 7 ? 2 : s < 4.5 ? -3 : 0), 0, 100);
   h.reviews.unshift(`${CT[p.ctype].cn}：${t}`);
   h.reviews.length = Math.min(3, h.reviews.length);
-  const repRate = G.achievements?.includes('champagne_pop') ? 0.075 : 0.06;
+  if (syn.clashes.length) incVoice(l, 'clashMood');
+  if (s >= 7.2) incVoice(l, 'happyPraise');
+  const repRate = (G.achievements?.includes('champagne_pop') ? 0.075 : 0.06) * aura.repMul;
   l.rep = clamp(l.rep + (clamp(s * 0.55, 1, 5) - l.rep) * repRate, 1, 5);
   if (s >= 7.5) bubble(p, '♥', '#FF5C54');
   else if (s < 4.5) bubble(p, '不太满意', '#A79B8C');
   const mp = mktPower(l);
-  const sweetB = hasTrait(h, 'sweet') ? 0.45 : 0;
+  const sweetB = (hasTrait(h, 'sweet') ? 0.45 : 0) + (hasTrait(h, 'gossip') ? 0.3 : 0) + syn.mods.regBonus;
   const achB = G.achievements?.includes('first_bar') ? 0.15 : 0;
   if (p.ctype === 'local') {
     if (p.reg && s < 4.8) G.regs = G.regs.filter((r) => r !== p.reg);
@@ -834,13 +1020,15 @@ export function review(p, h, l, s) {
     const key = p.gid || uid();
     if (!G.regs.some((r) => r.id === key)) {
       const n = p.gid ? (GROUPS.get(p.gid)?.length || 2) : 1;
-      G.regs.push({ id: key, type: p.ctype, bar: l.i, n, pers: p.prefPers, days: p.ctype === 'tai' ? 2 + (R() < 0.5 ? 1 : 0) : 6 + (R() < 0.5 ? 1 : 0), hid: h.id });
+      const baseDays = p.ctype === 'tai' ? 2 + (R() < 0.5 ? 1 : 0) : 6 + (R() < 0.5 ? 1 : 0);
+      G.regs.push({ id: key, type: p.ctype, bar: l.i, n, pers: p.prefPers, days: baseDays + wPerk.regExtraDays, hid: h.id });
       l.today.newRegs++;
     }
   } else if (p.reg) p.reg.hid = h.id;
 
   // Special menu: champagne tower & whisky upgrades
-  if (l.menu?.champagne && (s >= 7.8 || (p.pkg?.paid || 1) >= 4) && R() < 0.25) {
+  const champProb = Math.min(0.75, (0.25 + syn.mods.champBonus + aura.champBonus + wPerk.champBonus) * aura.specialMul);
+  if (l.menu?.champagne && (s >= 7.8 || (p.pkg?.paid || 1) >= 4) && R() < champProb) {
     const bonus = 680;
     G.money += bonus;
     l.today.drink += bonus;
@@ -868,10 +1056,13 @@ function finishOvernight(p, h, l, fromRoom) {
 
 function endSession(p, l, fromRoom) {
   const h = p.host;
+  const syn = evalBarSynergy(l);
+  const aura = activeLegendAuras(l);
   const s = finalSat(p, h, l);
   const sweetExt = hasTrait(h, 'sweet') ? 0.15 : 0;
-  if (s >= 7.3 && R() < 0.35 + sweetExt && G.t < T_LAST - 60 && h.until + 120 <= T_END) {
-    const fee = Math.round(HOURFEE * (fromRoom ? conceptOf(l).roomPriceMul : 1));
+  if (s >= 7.3 && R() < 0.35 + sweetExt + syn.mods.extBonus + aura.extBonus && G.t < T_LAST - 60 && h.until + 120 <= T_END) {
+    const rarityFeeMul = rarityOf(h).feeMul * whalePerkBonuses(G.codexWhales).feeMul * girlMilestoneBonuses(G.codexGirls).feeMul;
+    const fee = Math.round(HOURFEE * (fromRoom ? conceptOf(l).roomPriceMul * aura.roomFeeMul : 1) * rarityFeeMul);
     G.money += fee;
     l.today.hfee += fee;
     l.today.hours += 2;
@@ -887,11 +1078,14 @@ function endSession(p, l, fromRoom) {
     G.fx.push({ x: p.x, y: p.y, z: 14, t: `+${fee}k`, life: 6, col: '#E8B959' });
     return;
   }
-  if (fromRoom && l.menu?.whisky && R() < 0.35) {
+  const whiskyChance = Math.min(0.85, (0.35 + syn.mods.whiskyBonus) * aura.specialMul);
+  if (fromRoom && l.menu?.whisky && R() < whiskyChance) {
     G.money += 280;
     l.today.drink += 280;
     h.mood = Math.min(100, h.mood + 4);
     G.fx.push({ x: p.x, y: p.y, z: 15, t: '+280k 洋酒', life: 6, col: '#A87CE8' });
+  } else if (fromRoom && !l.menu?.whisky && R() < 0.35) {
+    incVoice(l, 'missedWhisky');
   }
   review(p, h, l, s);
   h.state = 'idle';
@@ -921,15 +1115,18 @@ function mineTick(p, l, dt) {
         p.nd = 30;
         if (p.phase === 'solo') p.tm = 0;
       } else {
+        const syn = evalBarSynergy(l);
+        const aura = activeLegendAuras(l);
         const cogs = barCogs(l);
-        let gain = l.price - cogs;
-        let rev = l.price;
-        let label = `+${l.price}k`;
-        if (l.menu?.bucket && p.ctype === 'local' && R() < 0.4) {
+        let gain = l.price - cogs + aura.drinkTip;
+        let rev = l.price + aura.drinkTip;
+        let label = `+${rev}k`;
+        const bucketProb = Math.min(0.85, (0.4 + syn.mods.bucketBonus) * aura.specialMul);
+        if (l.menu?.bucket && p.ctype === 'local' && R() < bucketProb) {
           gain += 45;
           rev += 45;
           label = `+${rev}k 🍺`;
-        } else if (l.menu?.platter && p.drinks === 0 && R() < 0.5) {
+        } else if (l.menu?.platter && p.drinks === 0 && R() < Math.min(0.85, 0.5 * aura.specialMul)) {
           gain += 60;
           rev += 60;
           label = `+${rev}k 🍍`;
@@ -939,11 +1136,15 @@ function mineTick(p, l, dt) {
         l.today.cogs += cogs;
         p.drinks++;
         G.fx.push({ x: p.x, y: p.y, z: 12, t: label, life: 4 });
+        const rowdyBoost = p.host && hasTrait(p.host, 'rowdy') && !syn.mods.disableNobleRowdy ? 1.35 : 1;
         const drinkMul =
           (p.phase === 'with' ? 0.7 : 1) /
           (conceptOf(l).drinkSpeedMul || 1) /
           (skillActive(l, 'happyHour') ? 1.8 : 1) /
-          (p.host && hasTrait(p.host, 'drinker') ? 1.3 : 1);
+          (p.host && hasTrait(p.host, 'drinker') ? 1.3 : 1) /
+          syn.mods.drinkSpeedMul /
+          aura.drinkSpeedMul /
+          rowdyBoost;
         p.nd = CT[p.ctype].drink * drinkMul * rnd(0.8, 1.2);
       }
     }
@@ -960,7 +1161,8 @@ function mineTick(p, l, dt) {
   if (p.phase === 'choose') {
     p.ct -= dt;
     if (p.ct <= 0) {
-      if (p.vip && !p.vip.done) vipDecide(p, l);
+      if (p.whale && !p.whale.done) whaleDecide(p, l);
+      else if (p.vip && !p.vip.done) vipDecide(p, l);
       else pickHostess(p, l);
     }
   } else if (p.phase === 'wait') {
@@ -969,6 +1171,7 @@ function mineTick(p, l, dt) {
     if (p.ct <= 0) pickHostess(p, l);
     if (p.phase === 'wait' && p.patience <= 0) {
       l.today.nohost++;
+      incVoice(l, 'waitLeft');
       l.rep = Math.max(1, l.rep - 0.01);
       bubble(p, '没人陪', '#A79B8C');
       AU.sfx('error-soft-thud', 2500);
@@ -1226,6 +1429,9 @@ export function checkAchievements() {
   tryUnlock('event_master', () => (G.stats.totalEventsOk || 0) >= 10);
   tryUnlock('week_3', () => G.day >= 21);
   tryUnlock('raid_dodge', () => (G.stats.totalRaidsDodged || 0) >= 1);
+  tryUnlock('first_legend', () => Object.values(G.codexGirls || {}).some(Boolean) || hs.some((h) => (h.rarity || 2) === 5));
+  tryUnlock('first_whale', () => Object.values(G.codexWhales || {}).some((w) => w?.unlocked));
+  tryUnlock('synergy_3', () => bs.some((l) => evalBarSynergy(l).synergies.length >= 3));
 
   if (unlock.length) {
     AU.sfx('achievement');
@@ -1257,6 +1463,25 @@ export function update(dtReal) {
   if (ev.vip && !ev.vip.spawned && G.t >= ev.vip.at) {
     ev.vip.spawned = true;
     spawnVip(ev.vip);
+  }
+  if (!G._whaleChecked && G.t >= 19.5 * 60 && bars().length) {
+    G._whaleChecked = true;
+    if (!G.whaleVisit) {
+      const lured = findLuredWhale(G);
+      if (lured) {
+        G.whaleVisit = {
+          id: lured.whale.id,
+          bar: lured.bar.i,
+          at: Math.min(T_LAST - 45, G.t + rnd(20, 50)),
+          spawned: false,
+        };
+        hooks.toast(`🚘 豪车驶近街口：${lured.whale.title}「${lured.whale.name}」被 ${lured.bar.name} 的阵容吸引，今晚将大驾光临！`);
+      }
+    }
+  }
+  if (G.whaleVisit && !G.whaleVisit.spawned && G.t >= G.whaleVisit.at) {
+    G.whaleVisit.spawned = true;
+    spawnWhale(G.whaleVisit);
   }
   if (ev.razia && !ev.raziaDone) {
     // Bouncer early warning 25 mins before raid
@@ -1392,10 +1617,12 @@ export function endDay() {
   const sunday = wday(G.day) === 6;
   let fee = 0;
   let extra = [];
+  const protMul = whalePerkBonuses(G.codexWhales).protectionMul;
   if (sunday) {
     bars().forEach((l) => {
       const baseFee = FEE(l);
-      fee += G.achievements?.includes('three_bars') ? Math.round(baseFee * 0.9) : baseFee;
+      const threeMul = G.achievements?.includes('three_bars') ? 0.9 : 1;
+      fee += Math.round(baseFee * threeMul * protMul);
     });
     const list = G.lots
       .filter((l) => l.kind === 'mine' || l.kind === 'rival')
@@ -1456,6 +1683,8 @@ export function endDay() {
   G.history = G.history || [];
   G.history.push({ day: G.day, wd: WD[wday(G.day)], rev: hf + dr, net, opProfit });
   if (G.history.length > 14) G.history.shift();
+  G.lastVoices = compileCustomerVoices(bars(), G);
+  G._whaleChecked = false;
 
   const got = checkGoals();
   checkAchievements();
@@ -1471,17 +1700,21 @@ export function endDay() {
 
 export function morning() {
   const news = [];
+  const gMile = girlMilestoneBonuses(G.codexGirls);
+  const wPerk = whalePerkBonuses(G.codexWhales);
   G.lots.forEach((l) => {
     if (l.kind !== 'mine') return;
+    const syn = evalBarSynergy(l);
     l.hostesses.slice().forEach((h) => {
       const w = h.worked || h.todayH > 0;
       if (w) {
-        h.en = Math.min(100, h.en + 13);
+        h.en = Math.min(100, h.en + 13 + gMile.restEnBonus);
         h.streak = (h.streak || 0) + 1;
+        h.mood = clamp(h.mood + syn.mods.dailyMoodBonus - syn.mods.morningMoodPenalty, 0, 100);
       } else {
-        h.en = Math.min(100, h.en + 45);
+        h.en = Math.min(100, h.en + 45 + gMile.restEnBonus);
         h.streak = 0;
-        h.mood = Math.min(100, h.mood + 6);
+        h.mood = Math.min(100, h.mood + 6 + syn.mods.dailyMoodBonus);
       }
       if (h.en < 30) h.mood -= 10;
       if (h.streak >= 6) h.mood -= 8;
@@ -1533,7 +1766,19 @@ export function morning() {
   if (e.nextBloggerBoost) n.bloggerBoost = true;
   if (R() < 0.07) {
     n.razia = rnd(20.5, 25) * 60;
-    n.rumor = R() < 0.5;
+    n.rumor = wPerk.raidForewarn || R() < 0.5;
+    if (wPerk.raidForewarn) {
+      n.exactRaid = true;
+      const rHh = Math.floor(n.razia / 60) % 24;
+      const rMm = String(Math.round(n.razia % 60)).padStart(2, '0');
+      news.push(`🚨 <b>警司 Komandan Joko 密报</b>：今晚警察将在 <b>${String(rHh).padStart(2, '0')}:${rMm}</b> 准时临检！`);
+    }
+  }
+  if (G.slot) {
+    const sDef = SLOT_LEVELS[G.slot.lv] || SLOT_LEVELS[1];
+    G.slot.freeLeft = sDef.free + gMile.extraFreeSpin;
+    G.slot.paidSpinsToday = 0;
+    G.slot.locks = [false, false, false];
   }
   const big = bars().filter((l) => activeH(l).length >= 6);
   const ktvBonus = big.some((l) => l.concept === 'ktv') ? 0.05 : 0;

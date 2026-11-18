@@ -158,6 +158,10 @@ export const TRAITS = {
   polyglot: { id: 'polyglot', cn: '多语通', col: '#1F6E5A', desc: '台客与中客选人好感 +1.4' },
   stamina: { id: 'stamina', cn: '耐力王', col: '#265385', desc: '体力消耗 -30%' },
   ace: { id: 'ace', cn: '镇店花', col: '#A82E26', desc: '上岗时本店进店率 +6%，稳住团队士气' },
+  noble: { id: 'noble', cn: '高岭之花', col: '#5A4A8A', desc: '中客与台客好感 +1.2，酒水溢价容忍提升（忌与划拳王同店）' },
+  rowdy: { id: 'rowdy', cn: '划拳王', col: '#B85D1E', desc: '散座点酒速度 +35%，土客进店率微增（忌与高岭之花同店）' },
+  diva: { id: 'diva', cn: '话题C位', col: '#C4384B', desc: '独享聚光灯时人气涨速 ×1.5、进店 +5%（忌与名花或其他C位同店）' },
+  gossip: { id: 'gossip', cn: '八面情报', col: '#2E6F7E', desc: '熟客转化 +25%（忌与甜心在小店扎堆内耗）' },
 };
 export const TRAIT_KEYS = Object.keys(TRAITS);
 
@@ -209,6 +213,9 @@ export const ACHIEVEMENTS = [
   { id: 'cash_100k', cn: '印尼盾大亨', desc: '手头现金突破 Rp 100,000k', bonus: '街区金融信誉', icon: '💰' },
   { id: 'event_master', cn: '八面玲珑', desc: '妥善处理 10 次店内实时突发事件', bonus: '突发事件奖励提升', icon: '🎭' },
   { id: 'week_3', cn: '长青招牌', desc: '经营到达第 21 天以上', bonus: '全店初始口碑护盘', icon: '🕯️' },
+  { id: 'first_legend', cn: '名花入驻', desc: '招募首位 5 等传奇名花并收录进《雅加达女子图鉴》', bonus: '图鉴荣耀起点', icon: '🌸' },
+  { id: 'first_whale', cn: '金主捧场', desc: '成功诱捕并满星解锁 1 位传奇金主', bonus: '街区大佬赏识', icon: '🎩' },
+  { id: 'synergy_3', cn: '排兵布阵', desc: '单店同晚同时激活 3 个正向羁绊', bonus: '阵容搭配大师', icon: '🧩' },
 ];
 
 export const LOTDEF = [
@@ -445,7 +452,10 @@ export const onDuty = (h) => h.on && !h.sick;
 export const activeH = (l) => l.hostesses.filter(onDuty);
 export const effAtt = (h) => clamp(h.att - (h.en < 20 ? 4 : h.en < 40 ? 2 : 0) + (h.mood >= 75 ? 1 : h.mood < 30 ? -1 : 0), 1, 10);
 export const moodTx = (m) => (m >= 70 ? ['开心', '#1F6E5A'] : m >= 40 ? ['一般', '#6E5F50'] : ['不爽', '#B5362F']);
-export const hWage = (h) => Math.round((110 + 26 * h.looks + 10 * h.ps + 12 * h.att) / 10) * 10;
+export const hWage = (h) => {
+  const rMul = [1, 0.85, 1.0, 1.12, 1.28, 1.5][clamp(h.rarity || 2, 1, 5)];
+  return Math.round(((110 + 26 * h.looks + 10 * h.ps + 12 * h.att) * rMul) / 10) * 10;
+};
 
 export const Lw = (l, u, v) =>
   l.f === 'yMax' ? [l.x0 + u, l.y0 + v]

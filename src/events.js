@@ -51,7 +51,7 @@ const LIVE_TEMPLATES = [
     title: '豪客斗酒',
     desc: '卡座阔少正比拼排面',
     optA: { label: '推香槟塔', hint: '72% +600k · 口碑↑' },
-    optB: { label: '赠果盘', hint: '-80k · 必得熟客' },
+    optB: { label: '稳妥上酒', hint: '+120k · 稳妥增收' },
     resolve(choice, l, toastFn, confettiFn) {
       if (choice === 'A') {
         if (Math.random() < 0.72) {
@@ -70,13 +70,11 @@ const LIVE_TEMPLATES = [
           toastFn(`${l.name}：客人嫌贵改点啤酒 (+Rp 80k)`);
         }
       } else {
-        G.money -= 80;
-        G.spent += 80;
-        l.rep = Math.min(5, l.rep + 0.1);
-        G.regs.push({ id: 'ev' + Date.now(), type: 'local', bar: l.i, n: 1, pers: 'extro', daily: true, pr: 0.75 });
-        l.today.newRegs++;
-        AU.sfx('confirm-unlock');
-        toastFn(`${l.name}：赠果盘获好评，熟客 +1`);
+        G.money += 120;
+        l.today.drink += 120;
+        l.rep = Math.min(5, l.rep + 0.03);
+        AU.sfx('coin-collect');
+        toastFn(`${l.name}：稳妥上招牌啤酒 (+Rp 120k)`);
       }
     },
   },
@@ -86,7 +84,7 @@ const LIVE_TEMPLATES = [
     title: '醉汉闹事',
     desc: '醉客纠缠公关引围观',
     optA: { label: '保安清场', hint: '有保安 心情↑ / 无 口碑↓' },
-    optB: { label: '敬酒息事', hint: '-150k · 平息' },
+    optB: { label: '礼貌劝离', hint: '+0k · 平安无损' },
     resolve(choice, l, toastFn) {
       if (choice === 'A') {
         if ((l.bouncers || []).length > 0) {
@@ -103,12 +101,8 @@ const LIVE_TEMPLATES = [
           toastFn(`${l.name} 无保安镇场，公关受委屈`);
         }
       } else {
-        G.money -= 150;
-        G.spent += 150;
-        l.rep = Math.min(5, l.rep + 0.03);
-        l.hostesses.forEach((h) => { if (h.on) h.mood = clamp(h.mood - 4, 0, 100); });
         AU.sfx('pop-bubble');
-        toastFn(`${l.name}：老板敬酒息事 (-Rp 150k)`);
+        toastFn(`${l.name}：店员礼貌劝离醉客，现场平安无事`);
       }
     },
   },
@@ -163,6 +157,102 @@ const LIVE_TEMPLATES = [
         l.today.drink += 60;
         AU.sfx('pop-bubble');
         toastFn(`熟客入座大厅 (+Rp 60k)`);
+      }
+    },
+  },
+  {
+    id: 'wandering_singer',
+    icon: '🎤',
+    title: '驻唱歌手试音',
+    desc: '街头歌者想借麦献唱热场',
+    optA: { label: '签约助唱一小时', hint: '-220k · 心情+12 · 口碑↑' },
+    optB: { label: '请喝两杯交朋友', hint: '+40k · 和气生财' },
+    resolve(choice, l, toastFn) {
+      if (choice === 'A') {
+        G.money -= 220;
+        G.spent += 220;
+        l.rep = Math.min(5, l.rep + 0.12);
+        l.hostesses.forEach((h) => { if (h.on) h.mood = clamp(h.mood + 12, 0, 100); });
+        AU.sfx('level-up');
+        toastFn(`🎤 ${l.name} 现场 Live 炸裂，全员心情与口碑齐升！`);
+      } else {
+        G.money += 40;
+        l.today.drink += 40;
+        AU.sfx('pop-bubble');
+        toastFn(`${l.name} 礼貌致意 (+Rp 40k)`);
+      }
+    },
+  },
+  {
+    id: 'bachelor_party',
+    icon: '🥳',
+    title: '兄弟团庆生',
+    desc: '整桌台客突发奇想搞派对',
+    optA: { label: '加码布置派对', hint: '净赚 +360k · 礼花助兴' },
+    optB: { label: '送上生日特调', hint: '+150k · 稳妥加单' },
+    resolve(choice, l, toastFn, confettiFn) {
+      if (choice === 'A') {
+        G.money += 360;
+        l.today.drink += 480;
+        l.today.cogs += 120;
+        l.rep = Math.min(5, l.rep + 0.08);
+        G.fx.push({ x: (l.x0 + l.x1) / 2, y: (l.y0 + l.y1) / 2, z: 15, t: '+360k 🥳', life: 6, col: '#E8B959' });
+        confettiFn?.((l.x0 + l.x1) / 2, (l.y0 + l.y1) / 2, 2.0);
+        AU.sfx('coin-double');
+        toastFn(`🥳 ${l.name} 派对大赚 Rp 360k，客人超满意！`);
+      } else {
+        G.money += 150;
+        l.today.drink += 150;
+        AU.sfx('coin-collect');
+        toastFn(`🎂 赠送生日特调，客人加单 +Rp 150k`);
+      }
+    },
+  },
+  {
+    id: 'rainy_taxi_drop',
+    icon: '🚕',
+    title: '夜班商旅路过',
+    desc: '门口停下两辆网约车散客',
+    optA: { label: '保安热情迎宾', hint: '有保安 +360k / 无 +120k' },
+    optB: { label: '亮灯自然迎客', hint: '+90k · 零操心顺手单' },
+    resolve(choice, l, toastFn) {
+      if (choice === 'A') {
+        const bonus = (l.bouncers || []).length > 0 ? 360 : 120;
+        G.money += bonus;
+        l.today.drink += bonus;
+        l.rep = Math.min(5, l.rep + 0.05);
+        AU.sfx('coin-collect');
+        toastFn(`🚕 ${l.name} 迎进商旅团，顺手创收 ${fm(bonus)}！`);
+      } else {
+        G.money += 90;
+        l.today.drink += 90;
+        AU.sfx('pop-bubble');
+        toastFn(`${l.name} 顺手接单 +Rp 90k`);
+      }
+    },
+  },
+  {
+    id: 'luxury_watch_lost',
+    icon: '⌚',
+    title: '卡座失物招领',
+    desc: '保洁在沙发缝捡到一块名表',
+    optA: { label: '专人寻回还老板', hint: '+200k 谢礼 · 口碑大涨 · 熟客+1' },
+    optB: { label: '吧台妥善代管', hint: '+50k · 稳妥留好评' },
+    resolve(choice, l, toastFn) {
+      if (choice === 'A') {
+        G.money += 200;
+        l.today.hfee += 200;
+        l.rep = Math.min(5, l.rep + 0.25);
+        G.regs.push({ id: 'wt' + Date.now(), type: 'cn', bar: l.i, n: 1, pers: 'intro', days: 5 });
+        l.today.newRegs++;
+        AU.sfx('achievement');
+        toastFn(`⌚ 老板重赏 Rp 200k 并记下 ${l.name} 人情，新增熟客！`);
+      } else {
+        G.money += 50;
+        l.today.drink += 50;
+        l.rep = Math.min(5, l.rep + 0.05);
+        AU.sfx('pop-bubble');
+        toastFn(`吧台登记失物，收获好评 (+Rp 50k)`);
       }
     },
   },

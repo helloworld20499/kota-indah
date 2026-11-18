@@ -376,7 +376,7 @@ export class Actors3D {
       if (p.hidden) continue;
       const l = p.bar != null ? G.lots[p.bar] : null;
       const sitSeat = p.st === 'sit' && p.seat != null && l ? l._seats?.[p.seat] : null;
-      const badgeCol = p.vip ? '#ffd65c' : p.bar != null && l?.kind === 'mine' ? CT[p.ctype].col : null;
+      const badgeCol = p.vip || p.whale ? '#ffd65c' : p.bar != null && l?.kind === 'mine' ? CT[p.ctype].col : null;
       this._pushHuman(
         state, p.x, p.y, sitSeat ? sitSeat.lift : 0, p.ph, !!sitSeat,
         p.shirt, p.hair, p.skin, '#3d3731', false, badgeCol, !!p.f, false,
@@ -409,12 +409,15 @@ export class Actors3D {
           const h = l.hostesses[hIdx];
           if (h.hidden) continue;
           const t = tierOf(h);
+          const r = h.rarity || (h.legendId ? 5 : 2);
+          const hBadge = r === 5 ? '#ffd65c' : r === 4 ? '#b77cf2' : r === 3 || t >= 1 ? '#5ea8e8' : null;
           this._pushHuman(
             state, h.x, h.y + (h.sit ? 0.05 : 0), h.lift, h._ph, h.sit,
             h.dress, h.hair, h.skin, h.dress, h.body === 'curvy',
-            t === 2 ? '#ffd65c' : t === 1 ? '#ff7c6e' : null, true, false,
+            hBadge, true, false,
           );
-          if (zoom > 1.75) this._pushHud(state, h.x, 1.35 + (h.lift || 0) * Z_SCALE * 0.6, h.y, h.name, 'name');
+          if (r === 5) this._pushGlow(state, h.x, h.y, 1.35, '#ffd65c', 0.13);
+          if (zoom > 1.75) this._pushHud(state, h.x, 1.35 + (h.lift || 0) * Z_SCALE * 0.6, h.y, (r === 5 ? '👑 ' : '') + h.name, 'name');
         }
       } else if (l.kind === 'rival') {
         this._pushBartenders(state, l, now, zoom);

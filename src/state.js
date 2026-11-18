@@ -3,6 +3,9 @@ import {
   DRESS, ROOMS, SKINS, TYPE, T0, T_END, T_OPEN, T_RIVAL, TRAIT_KEYS,
   Lw, R, clamp, hWage, onDuty, outPt, pick, pickC, playerEls, rnd, scaleEls, stOf, uid,
 } from './config.js';
+import {
+  RARITY_TIERS, createEmptyVoices, createInitialSlot, whalePerkBonuses,
+} from './codex.js';
 
 export let G = null;
 export const DOORS_BY_STREET = [[], [], [], [], [], []];
@@ -127,10 +130,22 @@ export function buildLots(state = G) {
   return lots;
 }
 
-export function mkHostess(q, forceTrait = false) {
-  const r = () => clamp(Math.round(q + (R() + R() + R() - 1.5) * 2.2), 1, 10);
+export function mkHostess(q, forceTrait = false, forcedRarity = null) {
+  const rarity = forcedRarity != null
+    ? clamp(forcedRarity, 1, 5)
+    : q >= 6.8
+      ? (R() < 0.45 ? 4 : 3)
+      : q >= 5.2
+        ? (R() < 0.38 ? 3 : 2)
+        : q >= 4.2
+          ? (R() < 0.35 ? 1 : 2)
+          : (R() < 0.55 ? 1 : 2);
+  const spec = RARITY_TIERS[rarity];
+  const [lo, hi] = spec.stat;
+  const r = () => clamp(Math.round(q + (R() + R() + R() - 1.5) * 2.0), lo, hi);
   const h = {
     id: uid(),
+    rarity,
     name: pick(HNAMES),
     body: R() < 0.5 ? 'slim' : 'curvy',
     looks: r(),
@@ -143,7 +158,7 @@ export function mkHostess(q, forceTrait = false) {
     reviews: [],
     en: 100,
     mood: 70,
-    pop: 0,
+    pop: rarity >= 4 ? 10 : rarity === 3 ? 3 : 0,
     on: true,
     streak: 0,
     hs: (R() * 4) | 0,
@@ -153,8 +168,11 @@ export function mkHostess(q, forceTrait = false) {
     loyalUntil: 0,
     traits: [],
   };
-  if (forceTrait || (q >= 5.5 && R() < 0.45) || R() < 0.16) {
-    h.traits.push(pick(TRAIT_KEYS));
+  const targetTraits = Math.max(forceTrait ? 1 : 0, spec.traits);
+  while (h.traits.length < targetTraits) {
+    const avail = TRAIT_KEYS.filter((k) => !h.traits.includes(k));
+    if (!avail.length) break;
+    h.traits.push(pick(avail));
   }
   h.wage = hWage(h);
   return h;
@@ -484,7 +502,9 @@ export function resetBarDay(l) {
     champagnes: 0,
     fine: 0,
     by: { local: 0, tai: 0, cn: 0 },
+    voices: createEmptyVoices(),
   };
+  l.scouts = l.scouts || [];
   l.roomsUsed = 0;
   l.dj = false;
   l.trainedToday = false;
@@ -550,6 +570,11 @@ export function createInitialState() {
     liveEvent: null,
     nextLiveAt: T_RIVAL + 55,
     liveEventsToday: 0,
+    slot: createInitialSlot({}),
+    codexGirls: {},
+    codexWhales: {},
+    lastVoices: [],
+    whaleVisit: null,
     mk: {
       scouts: [mkScout(), mkScout(), mkScout()],
       mkts: [mkMkt(), mkMkt(), mkMkt()],
@@ -560,6 +585,13 @@ export function createInitialState() {
 
 export function runtime(scheduleRegsFn) {
   G.lots = buildLots(G);
+  G.codexGirls = G.codexGirls || {};
+  G.codexWhales = G.codexWhales || {};
+  G.lastVoices = G.lastVoices || [];
+  G.slot = Object.assign(createInitialSlot(G.codexGirls), G.slot || {});
+  G.whaleVisit = null;
+  const whaleRentMul = whalePerkBonuses(G.codexWhales).rentMul;
+
   Object.keys(G.mine).forEach((k) => {
     const l = G.lots[+k];
     if (!l || l.kind !== 'empty') {
@@ -580,7 +612,13 @@ export function runtime(scheduleRegsFn) {
     l.fl = '#D8CDB8';
     l.loc = saved.loc || l.loc || 1.15;
     l.baseRent = baseRent;
-    l.rent = Math.round((baseRent * (l.rentMul || 1)) / 10) * 10;
+    l.rent = Math.round((baseRent * (l.rentMul || 1) * whaleRentMul) / 10) * 10;
+    (l.hostesses || []).forEach((h) => {
+      if (!h.rarity) {
+        h.rarity = h.legendId ? 5 : h.looks >= 8 ? 4 : h.looks >= 6 ? 3 : h.looks >= 4 ? 2 : 1;
+      }
+      if (!h.wage) h.wage = hWage(h);
+    });
     G.mine[k] = l;
     resetBarDay(l);
   });
@@ -660,7 +698,8 @@ export function newGame(scheduleRegsFn) {
 }
 
 const HF = [
-  'id', 'name', 'body', 'looks', 'att', 'pers', 'ps', 'hair', 'skin', 'dress',
+  'id', 'rarity', 'legendId', 'acc', 'title',
+  'name', 'body', 'looks', 'att', 'pers', 'ps', 'hair', 'skin', 'dress',
   'reviews', 'wage', 'en', 'mood', 'pop', 'on', 'streak', 'hs', 'lt', 'pr', 'refused',
   'raiseAsk', 'sick', 'traits', 'loyalUntil', 'returnUntil',
 ];
@@ -732,6 +771,10 @@ export function save() {
         history: G.history || [],
         achievements: G.achievements || [],
         stats: G.stats || {},
+        slot: G.slot ? Object.assign({}, G.slot, { pending: G.slot.pending ? pickF(G.slot.pending, HF) : null }) : createInitialSlot(G.codexGirls),
+        codexGirls: G.codexGirls || {},
+        codexWhales: G.codexWhales || {},
+        lastVoices: G.lastVoices || [],
       }),
     );
   } catch (_) {}
@@ -748,6 +791,7 @@ export function load(scheduleRegsFn) {
     if (!s || !s.mine) return false;
     const mk = s.mk || {};
     if (!mk.bouncers) mk.bouncers = [mkBouncer(), mkBouncer()];
+    const codexGirls = s.codexGirls || {};
     G = Object.assign(createInitialState(), {
       goal: s.goal || 0,
       ev: s.ev || {},
@@ -771,6 +815,10 @@ export function load(scheduleRegsFn) {
       history: s.history || [],
       achievements: s.achievements || [],
       stats: Object.assign(createInitialState().stats, s.stats || {}),
+      codexGirls,
+      codexWhales: s.codexWhales || {},
+      lastVoices: s.lastVoices || [],
+      slot: Object.assign(createInitialSlot(codexGirls), s.slot || {}),
     });
     runtime(scheduleRegsFn);
     return true;

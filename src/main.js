@@ -7,8 +7,11 @@ import {
 } from './state.js';
 import {
   applyShiftPreset, buyMenuItem, buyoutRival, fireBouncer, giveHongbao, hireBouncer,
-  poachRivalHostess, setBarConcept, trainHostess, transferHostess,
+  hireSlotPending, poachRivalHostess, setBarConcept, trainHostess, transferHostess,
 } from './economy.js';
+import {
+  spinSlotMachine, toggleSlotLock, upgradeSlotMachine,
+} from './codex.js';
 import {
   activateSkill, resolveLiveEvent, tickLiveEvent, triggerLiveEvent,
 } from './events.js';
@@ -20,7 +23,10 @@ import { Scene3D } from './scene3d.js';
 import { World3D } from './world3d.js';
 import { Actors3D } from './actors3d.js';
 import { LIGHT_MODES } from './themes.js';
-import { live, priceHint, renderLiveEvent, renderPanel, showAchievementsModal, showBriefModal, showEndDayModal, toast } from './ui.js';
+import {
+  live, priceHint, renderLiveEvent, renderPanel, showAchievementsModal, showBriefModal,
+  showCodexModal, showEndDayModal, toast,
+} from './ui.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -298,12 +304,37 @@ export function act(a, v) {
     applyShiftPreset(l, 'rush', toast);
   } else if (a === 'auto' && l) {
     applyShiftPreset(l, 'smart', toast);
+  } else if (a === 'slotSpin') {
+    const res = spinSlotMachine(G, l, pay, toast, (x, y, z) => actors3d?.spawnConfettiBurst(x, y, z));
+    if (res) {
+      checkAchievements();
+      renderPanel();
+      const reelsEl = document.querySelector('.slot-reels');
+      if (reelsEl) {
+        reelsEl.classList.add('spinning');
+        setTimeout(() => reelsEl.classList.remove('spinning'), 340);
+      }
+      return;
+    }
+  } else if (a === 'slotLock') {
+    toggleSlotLock(G, +v, toast);
+  } else if (a === 'slotUp') {
+    upgradeSlotMachine(G, pay, toast);
+  } else if (a === 'hirePending') {
+    hireSlotPending(l, toast);
+  } else if (a === 'openCodex') {
+    AU.sfx('modal-open-rise');
+    showCodexModal(G?._codexTab || 'girls');
+    return;
+  } else if (a === 'codexTab') {
+    showCodexModal(v);
+    return;
   }
   renderPanel();
 }
 
 function initUIEvents() {
-  const QUIET = ['tog', 'hireH', 'fireH', 'hireS', 'hireM', 'hireB', 'up', 'rent', 'hongbao', 'trainH'];
+  const QUIET = ['tog', 'hireH', 'fireH', 'hireS', 'hireM', 'hireB', 'up', 'rent', 'hongbao', 'trainH', 'slotSpin', 'slotLock', 'slotUp', 'hirePending'];
   $('panel')?.addEventListener('click', (e) => {
     const b = e.target.closest('[data-a]');
     if (b) {
@@ -376,6 +407,11 @@ function initUIEvents() {
     const idx = +b.dataset.jump;
     if (idx < 0) act('back');
     else focusLot(idx);
+  });
+
+  $('btnCodex')?.addEventListener('click', () => {
+    AU.sfx('modal-open-rise');
+    showCodexModal(G?._codexTab || 'girls');
   });
 
   $('btnAch')?.addEventListener('click', () => {

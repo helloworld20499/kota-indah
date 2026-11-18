@@ -102,7 +102,7 @@ function makeMockElement(id = '', tag = 'div') {
   };
 }
 
-const domIds = ['panel', 'panelWrap', 'sheet', 'modal', 'toast', 'hDay', 'hMoney', 'hMoneyChip', 'tdot', 'speed', 'zall', 'ttl', 'hClock', 'auM', 'auS', 'btnSkipOpen', 'world-hud', 'barPills', 'skillDock', 'liveEventCard', 'btnQual', 'btnAch', 'achCnt', 'mobTabs', 'sheetGrabber', 'btnLight'];
+const domIds = ['panel', 'panelWrap', 'sheet', 'modal', 'toast', 'hDay', 'hMoney', 'hMoneyChip', 'tdot', 'speed', 'zall', 'ttl', 'hClock', 'auM', 'auS', 'btnSkipOpen', 'world-hud', 'barPills', 'skillDock', 'liveEventCard', 'btnQual', 'btnCodex', 'codexCnt', 'btnAch', 'achCnt', 'mobTabs', 'sheetGrabber', 'btnLight'];
 const elements = new Map(domIds.map((id) => [id, makeMockElement(id)]));
 
 const storeMap = new Map();
@@ -287,7 +287,8 @@ for (const st of ['mine', 'empty', 'rival']) {
 assert(panelEl.innerHTML.includes('公关'), 'Missing rival hostess count in street rival panel');
 
 // Verify hidden attitude drives pop gain via review(), categorical body preference & uncapped vouchers
-const { review, choiceScore, choosePkg, startSession, skipToOpen, update, nextDay, scheduleRegs } = await import('../src/sim.js');
+const codexMod = await import('../src/codex.js');
+const { review, choiceScore, choosePkg, startSession, skipToOpen, update, nextDay, scheduleRegs, whaleDecide } = await import('../src/sim.js');
 const { CT, makePkg, T_OPEN } = await import('../src/config.js');
 assert.equal(CT.local.body, 'curvy');
 assert.equal(CT.tai.body, 'slim');
@@ -434,10 +435,98 @@ if (myBars.length) {
   assert(hNext && hNext.state === 'out' && hNext.until <= T_OPEN, `Expected overnight hostess still out during afternoon until <= 17:00, got state=${hNext?.state} until=${hNext?.until}`);
   assert(skipToOpen());
   assert.equal(hNext.state, 'idle', 'Expected overnight hostess to return by 17:00 opening');
+
+  // Verify v5.0: 5-tier rarity, Slot Machine, Dual Codex, Synergies/Clashes, Whale Lure, Customer Voices & non-punishing optB
+  const curG5 = state.G;
+  const bar5 = curG5.lots[bAfterLoad.i];
+  curG5.money = 120000;
+  const pay5 = (n) => { curG5.money -= n; return true; };
+
+  // 1) 5-tier rarity + Tier-5 2.0x fee multiplier
+  const hR2 = mkHostess(5, false, 2);
+  const hR5 = codexMod.instantiateLegendGirl(codexMod.LEGEND_GIRLS[0]); // kartika
+  assert.equal(codexMod.rarityOf(hR2).r, 2);
+  assert.equal(codexMod.rarityOf(hR5).r, 5);
+  assert.equal(codexMod.rarityOf(hR5).feeMul, 2.0);
+
+  // 2) Slot Machine: free spin, lock blocked on Lv.1, upgrade to Lv.2..4, lock allowed, pity Jackpot -> codexGirls + hireSlotPending
+  assert(!codexMod.toggleSlotLock(curG5, 0, noop), 'Slot lock should be blocked at Lv.1');
+  const firstSpin = codexMod.spinSlotMachine(curG5, bar5, pay5, noop, noop);
+  assert(firstSpin && firstSpin.rarity >= 1 && firstSpin.rarity <= 5);
+  assert(codexMod.upgradeSlotMachine(curG5, pay5, noop) && curG5.slot.lv === 2);
+  assert(codexMod.toggleSlotLock(curG5, 2, noop) && curG5.slot.locks[2] === true);
+  assert(codexMod.upgradeSlotMachine(curG5, pay5, noop) && curG5.slot.lv === 3);
+  assert(codexMod.upgradeSlotMachine(curG5, pay5, noop) && curG5.slot.lv === 4);
+  curG5.slot.pity = codexMod.SLOT_LEVELS[4].pityMax;
+  const legSpin = codexMod.spinSlotMachine(curG5, bar5, pay5, noop, noop);
+  assert(legSpin && legSpin.rarity === 5 && legSpin.legendId, 'Expected pity Jackpot to yield Tier-5 Legendary hostess');
+  assert(curG5.codexGirls[legSpin.legendId] === true, 'Expected Jackpot to unlock girl in codexGirls');
+  const prevLen = bar5.hostesses.length;
+  bar5.hostesses = bar5.hostesses.slice(0, 4);
+  assert(econ.hireSlotPending(bar5, noop), 'Expected hireSlotPending to sign pending girl');
+  assert(bar5.hostesses.length === Math.min(prevLen, 4) + 1 && curG5.slot.pending === null);
+
+  // 3) Roster Synergies & Clashes
+  bar5.hostesses = [
+    Object.assign(mkHostess(6, false, 3), { body: 'slim', traits: ['singer'], on: true, sick: false }),
+    Object.assign(mkHostess(6, false, 3), { body: 'curvy', traits: ['drinker'], on: true, sick: false }),
+    Object.assign(mkHostess(6, false, 2), { body: 'slim', traits: ['polyglot'], on: true, sick: false }),
+    Object.assign(mkHostess(6, false, 2), { body: 'curvy', traits: ['sweet'], on: true, sick: false }),
+    Object.assign(codexMod.instantiateLegendGirl(codexMod.LEGEND_GIRLS[2]), { on: true, sick: false }), // meiling
+  ];
+  const synOk = codexMod.evalBarSynergy(bar5);
+  assert(synOk.ids.includes('box_gold') && synOk.ids.includes('balance_body') && synOk.ids.includes('star_moon'), 'Expected box_gold, balance_body, star_moon synergies');
+  assert.equal(synOk.clashes.length, 0, 'Expected zero clashes on balanced roster');
+
+  bar5.hostesses.push(Object.assign(codexMod.instantiateLegendGirl(codexMod.LEGEND_GIRLS[0]), { on: true, sick: false })); // kartika -> two_queens + noble_rowdy if rowdy added
+  bar5.hostesses.push(Object.assign(mkHostess(5, false, 2), { traits: ['rowdy'], on: true, sick: false }));
+  const synClash = codexMod.evalBarSynergy(bar5);
+  assert(synClash.clashIds.includes('two_queens') && synClash.clashIds.includes('noble_rowdy'), 'Expected two_queens and noble_rowdy clashes');
+
+  // 4) Whale Lure + 3 visits -> permanent perk
+  bar5.concept = 'ktv';
+  bar5.menu.whisky = true;
+  bar5.hostesses.pop();
+  bar5.hostesses.pop();
+  assert(codexMod.barMatchedWhales(bar5, curG5).some((w) => w.id === 'hendra'), 'Expected bar to lure Pak Hendra');
+  const hendraDef = codexMod.WHALE_MAP.hendra;
+  for (let v = 0; v < 3; v++) {
+    bar5.hostesses.forEach((h) => { h.state = 'idle'; h.hidden = false; h.en = 90; });
+    const wObj = { id: 'hendra', bar: bar5.i, done: false };
+    const mPeds = Array.from({ length: hendraDef.n }, (_, idx) => ({
+      whale: wObj, bar: bar5.i, st: 'sit', seat: idx, ctype: hendraDef.ctype, prefPers: 'extro', x: bar5.x0 + 1, y: bar5.y0 + 1, home: [bar5.x0 + 1, bar5.y0 + 1], door: bar5.doors[0],
+    }));
+    curG5.peds.push(...mPeds);
+    whaleDecide(mPeds[0], bar5);
+  }
+  assert(curG5.codexWhales.hendra?.unlocked === true, 'Expected 3 visits to unlock Pak Hendra permanent perk');
+  assert.equal(codexMod.whalePerkBonuses(curG5.codexWhales).protectionMul, 0.75);
+
+  // 5) Customer Voices compilation & Codex/Brief/Slot HTML sanity
+  bar5.today.voices.noSlim = 3;
+  bar5.today.voices.roomFull = 2;
+  curG5.lastVoices = codexMod.compileCustomerVoices([bar5], curG5);
+  assert(curG5.lastVoices.length >= 2 && curG5.lastVoices[0].text.includes(bar5.name));
+  ui.showCodexModal('girls');
+  assert(!elements.get('sheet').innerHTML.includes('NaN') && !elements.get('sheet').innerHTML.includes('undefined') && elements.get('sheet').innerHTML.includes('雅加达女子图鉴'));
+  ui.showCodexModal('whales');
+  assert(!elements.get('sheet').innerHTML.includes('NaN') && !elements.get('sheet').innerHTML.includes('undefined') && elements.get('sheet').innerHTML.includes('Pak Hendra'));
+
+  // 6) Non-punishing Live Event optB fallback
+  for (let k = 0; k < 6; k++) {
+    bar5._g.push({ id: 'evg' });
+    curG5.liveEvent = null;
+    evMod.triggerLiveEvent(ui.renderLiveEvent);
+    const beforeM = curG5.money;
+    evMod.resolveLiveEvent('B', noop, noop, noop);
+    assert(curG5.money >= beforeM, 'Expected live event optB timeout fallback to never lose cash');
+    bar5._g.pop();
+  }
 }
-G2.ev.rain = true;
+state.G.ev.rain = true;
 ui.showBriefModal(['测试简报']);
 assert(elements.get('sheet').innerHTML.includes('ev-card'), 'Expected event card in daily brief modal');
+assert(elements.get('sheet').innerHTML.includes('昨夜客群真实心声'), 'Expected customer voices in daily brief modal');
 ui.showAchievementsModal();
 ui.showEndDayModal({
   hf: 1200, dr: 800, cogs: 200, hw: 500, hc: 540, sw: 200, rent: 400,

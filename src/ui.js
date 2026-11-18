@@ -2,6 +2,11 @@ import {
   ACHIEVEMENTS, BODY, COGS, CONCEPTS, CT, FEE, GOALS, MAXH, PERS, ROOMS, SKILLS, SKINS, SPECIAL_MENU,
   T0, T_END, T_OPEN, TIER, TRAITS, UPG, WD, WMUL, activeH, clamp, esc, fm, fmShort, onDuty, tierOf, wday, where,
 } from './config.js';
+import {
+  GIRL_MILESTONES, LEGEND_GIRLS, LEGEND_MAP, RARITY_TIERS, REEL_LEFT, REEL_MID, REEL_RIGHT,
+  SLOT_LEVELS, WHALES, barMatchedWhales, evalBarSynergy, girlMilestoneBonuses, rarityOf,
+  slotLockCost, spinCost, whalePerkBonuses,
+} from './codex.js';
 import { G, bars, cap } from './state.js';
 import { buyoutCost, rivalIntel } from './economy.js';
 import { barOpen, buzz, enterProb, evList, fair, lit, trafMul, wagesOf } from './sim.js';
@@ -24,15 +29,32 @@ export function toast(t) {
   toast._t = setTimeout(() => e.classList.remove('on'), 2400);
 }
 
+function accVector(acc) {
+  switch (acc) {
+    case 'tiara': return `<path d="M14 9.5 L17.5 4.5 L21 8 L24.5 4.5 L28 9.5Z" fill="#E2B24A" stroke="#2F261E" stroke-width=".7"/>`;
+    case 'flower': return `<circle cx="29.5" cy="14" r="3.4" fill="#E85A4F"/><circle cx="29.5" cy="14" r="1.2" fill="#F6D55C"/>`;
+    case 'pearl': return `<circle cx="13" cy="21" r="1.3" fill="#FAF5E8" stroke="#9E6214" stroke-width=".6"/><circle cx="29" cy="21" r="1.3" fill="#FAF5E8" stroke="#9E6214" stroke-width=".6"/><path d="M16.5 31 Q21 35.5 25.5 31" fill="none" stroke="#FAF5E8" stroke-width="1.8" stroke-dasharray="1.8 1.4"/>`;
+    case 'star': return `<polygon points="28,9.5 29,12 31.5,12 29.5,13.5 30.2,16 28,14.5 25.8,16 26.5,13.5 24.5,12 27,12" fill="#F6D55C" stroke="#2F261E" stroke-width=".5"/>`;
+    case 'glasses': return `<rect x="15.2" y="16.5" width="4.8" height="3.2" rx="1" fill="none" stroke="#2F261E" stroke-width=".9"/><rect x="22" y="16.5" width="4.8" height="3.2" rx="1" fill="none" stroke="#2F261E" stroke-width=".9"/><line x1="20" y1="18" x2="22" y2="18" stroke="#2F261E" stroke-width=".9"/>`;
+    case 'jade': return `<circle cx="12.8" cy="21" r="1.3" fill="#2A9D8F"/><circle cx="29.2" cy="21" r="1.3" fill="#2A9D8F"/><circle cx="21" cy="33.5" r="1.6" fill="#2A9D8F"/>`;
+    case 'headset': return `<path d="M12 18 Q12 7.5 21 7.5 Q30 7.5 30 18" fill="none" stroke="#2F261E" stroke-width="1.8"/><rect x="10.2" y="16" width="2.8" height="5" rx="1" fill="#5B7FA6"/><rect x="29" y="16" width="2.8" height="5" rx="1" fill="#5B7FA6"/>`;
+    case 'goldpin': return `<line x1="25" y1="6" x2="31" y2="12" stroke="#E2B24A" stroke-width="1.5"/><circle cx="31" cy="12" r="1.4" fill="#E2B24A"/>`;
+    case 'ribbon': return `<path d="M17 8.5 L21 10.5 L17 12.5Z M25 8.5 L21 10.5 L25 12.5Z" fill="#E76F8B" stroke="#2F261E" stroke-width=".5"/>`;
+    default: return '';
+  }
+}
+
 export function avatar(o, sz = 34) {
   const id = 'av' + AVN++;
   const sk = o.skin || '#D7A47C';
   const hr = o.hair || '#2b211b';
   const cl = o.dress || o.shirt || '#888';
   const t = o.pop != null ? tierOf(o) : 0;
-  const ring = o.ring || (t === 2 ? '#9E6214' : t === 1 ? '#B5362F' : '#2F261E');
+  const rSpec = !o.male && (o.rarity != null || o.legendId) ? rarityOf(o) : null;
+  const ring = o.ring || (o.male ? '#2F261E' : rSpec ? rSpec.col : t === 2 ? '#9E6214' : t === 1 ? '#B5362F' : '#2F261E');
+  const strokeW = rSpec && rSpec.r >= 4 ? 2.4 : t ? 2.2 : 1.3;
   const hs = o.hs != null ? o.hs : (parseInt(String(o.id || '0').slice(-3), 36) || 0) % 4;
-  const crown = t === 2 ? `<path d="M16 7 L18 3.5 L21 6 L24 3.5 L26 7Z" fill="#E2B24A"/>` : '';
+  const crown = (t === 2 || rSpec?.r === 5) && o.acc !== 'tiara' ? `<path d="M16 7 L18 3.5 L21 6 L24 3.5 L26 7Z" fill="#E2B24A"/>` : '';
   const capPath = `<path d="M12.5 17 Q13.5 7.5 21 7.5 Q28.5 7.5 29.5 17 Q26 11.5 21 12.2 Q15.5 11.5 12.5 17Z" fill="${hr}"/>${crown}`;
   let back = '';
   let front = capPath;
@@ -51,9 +73,10 @@ export function avatar(o, sz = 34) {
     ? ''
     : `<circle cx="15.8" cy="20.6" r="1.5" fill="#E79A92" opacity=".55"/><circle cx="26.2" cy="20.6" r="1.5" fill="#E79A92" opacity=".55"/>` +
       (t ? `<circle cx="12.8" cy="21" r="1" fill="#E2B24A"/><circle cx="29.2" cy="21" r="1" fill="#E2B24A"/>` : '');
+  const acc = !o.male && o.acc ? accVector(o.acc) : '';
   return `<svg class="av" width="${sz}" height="${sz}" viewBox="0 0 42 42" aria-hidden="true"><defs><clipPath id="${id}"><circle cx="21" cy="21" r="19.5"/></clipPath></defs>
-    <circle cx="21" cy="21" r="19.5" fill="#EFE6D4"/><g clip-path="url(#${id})">${back}<path d="M5 44 Q7 31.5 21 30.5 Q35 31.5 37 44Z" fill="${cl}"/>${extra}${face}${girl}${front}</g>
-    <circle cx="21" cy="21" r="19.5" fill="none" stroke="${ring}" stroke-width="${t ? 2.2 : 1.3}"/></svg>`;
+    <circle cx="21" cy="21" r="19.5" fill="${rSpec?.r === 5 ? '#FBF0CE' : '#EFE6D4'}"/><g clip-path="url(#${id})">${back}<path d="M5 44 Q7 31.5 21 30.5 Q35 31.5 37 44Z" fill="${cl}"/>${extra}${face}${girl}${front}${acc}</g>
+    <circle cx="21" cy="21" r="19.5" fill="none" stroke="${ring}" stroke-width="${strokeW}"/></svg>`;
 }
 
 const pips = (n, max, cls = '') =>
@@ -99,20 +122,26 @@ function traitBadges(h) {
 
 function hCard(h, cand, curBar) {
   const t = tierOf(h);
+  const rSpec = rarityOf(h);
   const off = !cand && !onDuty(h);
   const on = h.on && !h.sick;
   const shielded = !cand && (h.loyalUntil || 0) >= G.day;
   const otherBars = !cand && curBar ? bars().filter((b) => b.i !== curBar.i) : [];
+  const leg = h.legendId ? LEGEND_MAP[h.legendId] : null;
+  const hireBtn = cand === 'slot'
+    ? `<button class="btn pri mini" style="margin:0;padding:3px 10px" data-a="hirePending">✨ 签约入店</button>`
+    : `<button class="btn pri mini" style="margin:0;padding:3px 10px" data-a="hireH" data-v="${cand}">签约聘用</button>`;
 
-  return `<div class="card hc compact${off ? ' off' : ''}"><div class="hrow">${avatar(h, 34)}<div class="hmain">
-    <h5><span>${esc(h.name)}<span class="type-pill">${BODY[h.body]}</span>${t ? `<span class="badge b${t}">${TIER[t]}</span>` : ''}${h.sick ? '<span class="badge boff">病假</span>' : ''}${shielded ? '<span class="shield-badge" title="防挖角护盾">🛡️</span>' : ''}${traitBadges(h)}</span>
+  return `<div class="card hc compact${off ? ' off' : ''}${rSpec.r === 5 ? ' legend' : ''}"><div class="hrow">${avatar(h, 34)}<div class="hmain">
+    <h5><span>${esc(h.name)}<span class="r-badge r${rSpec.r}">${rSpec.short}</span><span class="type-pill">${BODY[h.body]}</span>${t ? `<span class="badge b${t}">${TIER[t]}</span>` : ''}${h.sick ? '<span class="badge boff">病假</span>' : ''}${shielded ? '<span class="shield-badge" title="防挖角护盾">🛡️</span>' : ''}${traitBadges(h)}</span>
       <em${cand || off ? '' : ` data-live="h:${h.id}"`}>${cand ? `${fmShort(h.wage)}/晚` : off ? '休息中' : hStatus(h)}</em></h5>
+    ${leg ? `<div class="legend-aura">👑 ${esc(leg.title)} · ${esc(leg.auraCn)}</div>` : ''}
     <div class="h-bars-2">
       <div class="h-bar-cell"><small>样貌</small>${vbar(h.looks * 10, 'purple')}</div>
       <div class="h-bar-cell"><small>${PERS[h.pers]}</small>${vbar(h.ps * 10, 'sky')}</div>
     </div>
     ${cand
-      ? `<div class="hb"><button class="btn pri mini" style="margin:0;padding:3px 10px" data-a="hireH" data-v="${cand}">签约聘用</button></div>`
+      ? `<div class="hb">${hireBtn}</div>`
       : `<div class="h-bars-3">
           <div class="h-bar-cell"><small>体力</small>${vbar(h.en, h.en < 30 ? 'coral' : h.en < 60 ? 'gold' : 'teal')}</div>
           <div class="h-bar-cell"><small>心情</small>${vbar(h.mood, h.mood < 35 ? 'coral' : h.mood < 65 ? 'sky' : 'teal')}</div>
@@ -217,13 +246,13 @@ export function renderPanel() {
         ['run', '🎛️ 运营'],
         ['upg', '🛠️ 升级'],
         ['girls', `💃 公关(${l.hostesses.length})`],
-        ['scout', `🔍 星探(${l.scouts.length})`],
+        ['scout', '🎰 摇人'],
         ['mkt', `🛡️ 团队(${(l.bouncers || []).length + l.mkts.length})`],
       ].map(([k, t]) => `<button class="${tab === k ? 'on' : ''}" data-a="tab" data-v="${k}">${t}</button>`).join('')}</div>
     </div><div class="deck-body">`;
 
     if (tab === 'run') {
-      const curConcept = CONCEPTS[l.concept || 'bintang'];
+      const luredWhales = barMatchedWhales(l, G);
       h += `<div class="grid-3">${Object.values(CONCEPTS)
           .map((c) => `<button class="concept-btn${l.concept === c.id ? ' on' : ''}" data-a="concept" data-v="${c.id}"><b>${c.cn}</b><small>${c.tag.split('·')[0].trim()}</small></button>`)
           .join('')}</div>
@@ -248,6 +277,13 @@ export function renderPanel() {
           <div class="card" style="padding:6px 8px;text-align:center"><small style="font-size:10px;color:var(--mute)">团队日薪</small><div class="num" style="font-size:12px">${fmShort(wagesOf(l).s)}</div></div>
           <div class="card" style="padding:6px 8px;text-align:center"><small style="font-size:10px;color:var(--mute)">熟客</small><div class="num" style="font-size:12px">${regs.length} 拨</div></div>
         </div>`;
+      if (luredWhales.length) {
+        h += `<div class="whale-lure-banner">🎣 <b>今夜阵容已设局吸引：</b>${luredWhales.map((w) => `${w.title}·${w.name}`).join('、')}</div>`;
+      }
+      if (G.lastVoices && G.lastVoices.length) {
+        h += `<div class="lbl"><span>🗣️ 昨夜客群心声</span><span>真实经营反馈</span></div>` +
+          G.lastVoices.slice(0, 2).map((vo) => `<div class="voice-card"><div class="voice-head"><b>${esc(vo.who)}</b><small>${esc(vo.barName)}</small></div><p>${esc(vo.text)}</p><span>💡 ${esc(vo.hint)}</span></div>`).join('');
+      }
     } else if (tab === 'upg') {
       h += `<div class="lbl"><span>硬装设施</span><span>Lv.3 满级</span></div>
         <div class="grid-2">${Object.keys(UPG).map((k) => {
@@ -291,27 +327,74 @@ export function renderPanel() {
         </div>`;
 
       if (gSub === 'roster') {
-        if (!l.hostesses.length) h += `<div class="card"><p>暂无公关，点上方「应聘」签约。</p></div>`;
-        l.hostesses.slice().sort((a, b) => onDuty(b) - onDuty(a) || b.pop - a.pop).forEach((x) => { h += hCard(x, null, l); });
+        const syn = evalBarSynergy(l);
+        const lured = barMatchedWhales(l, G);
+        h += `<div class="syn-box">
+          <div class="syn-head"><b>今夜阵容化学反应</b><button class="btn-x" data-a="openCodex">📖 图鉴线索</button></div>
+          <div class="syn-pills">${
+            syn.synergies.length
+              ? syn.synergies.map((s) => `<span class="syn-pill" title="${esc(s.req)}：${esc(s.desc)}">${s.icon} ${esc(s.cn)}</span>`).join('')
+              : `<span class="syn-empty">暂无激活羁绊（例如 歌姬+酒神、苗条≥2+丰满≥2）</span>`
+          }</div>
+          ${lured.length ? `<div class="syn-lure">🎩 可吸引金主：${lured.map((w) => `${w.title}·${w.name}`).join('、')}</div>` : ''}
+          ${syn.clashes.map((c) => `<div class="clash-alert"><b>${c.icon} ${esc(c.cn)}</b>：${esc(c.desc)} · <i>${esc(c.fix)}</i></div>`).join('')}
+        </div>`;
+        if (!l.hostesses.length) h += `<div class="card"><p>暂无公关，点上方「应聘」或「🎰 摇人」招募。</p></div>`;
+        l.hostesses.slice().sort((a, b) => onDuty(b) - onDuty(a) || rarityOf(b).r - rarityOf(a).r || b.pop - a.pop).forEach((x) => { h += hCard(x, null, l); });
       } else {
-        if (!l.cands.length) h += `<div class="card"><p>今日暂无新人。</p></div>`;
+        if (!l.cands.length) h += `<div class="card"><p>今日暂无新人，可切去「🎰 摇人」用招募机抽取。</p></div>`;
         l.cands.forEach((c, i) => { h += hCard(c, String(i), l); });
       }
     } else if (tab === 'scout') {
-      h += `<div class="lbl"><span>寻人偏好</span><span>次日生效</span></div>
-        <div class="grid-3">
-          <div><small style="font-size:10px;color:var(--mute)">身材</small>${seg('body', l.req.body, [['any', '不限'], ['slim', '苗条'], ['curvy', '丰满']])}</div>
-          <div><small style="font-size:10px;color:var(--mute)">性格</small>${seg('pers', l.req.pers, [['any', '不限'], ['intro', '内向'], ['extro', '外向']])}</div>
-          <div><small style="font-size:10px;color:var(--mute)">样貌</small>${seg('looks', l.req.looks, [[0, '不限'], [5, '端庄'], [7, '惊艳']])}</div>
+      const sl = G.slot;
+      const sDef = SLOT_LEVELS[sl.lv] || SLOT_LEVELS[1];
+      const cost = spinCost(sl, G.codexWhales);
+      const r0 = REEL_LEFT[sl.reels[0]] || REEL_LEFT[0];
+      const r1 = REEL_MID[sl.reels[1]] || REEL_MID[0];
+      const r2 = REEL_RIGHT[sl.reels[2]] || REEL_RIGHT[0];
+      const lockCost = slotLockCost(G.codexWhales);
+      const pityPct = clamp(Math.round((sl.pity / sDef.pityMax) * 100), 4, 100);
+      const spinLabel = sl.freeLeft > 0
+        ? `🎰 拉杆摇人 · 免费(${sl.freeLeft})${cost.lockFee ? ` + 锁轴${fmShort(cost.lockFee)}` : ''}`
+        : `🎰 拉杆摇人 · ${fmShort(cost.total)}`;
+
+      h += `<div class="slot-box${sl.lastJackpot ? ' jackpot' : ''}">
+        <div class="slot-top">
+          <div><b>🎰 Lv.${sl.lv} ${sDef.cn}</b><small>${sDef.desc}</small></div>
+          <div class="slot-top-acts">
+            <button class="btn-x" data-a="openCodex">📖 图鉴</button>
+            ${sl.lv < 4 ? `<button class="tog on" data-a="slotUp">升级 ${fmShort(sDef.upCost)}</button>` : `<span class="badge b2">满级</span>`}
+          </div>
         </div>
-        <div class="lbl"><span>在职星探</span><span>${l.scouts.length}/2</span></div>`;
-      l.scouts.forEach((o) => {
-        h += sCard(o, 's', `<button class="tog s-row-act" data-a="fireS" data-v="${o.id}">解雇</button>`);
-      });
-      h += `<div class="lbl"><span>可聘星探</span><span>${G.mk.scouts.length}</span></div>`;
-      G.mk.scouts.forEach((o, i) => {
-        h += sCard(o, 's', `<button class="btn pri s-row-act" style="width:auto" data-a="hireS" data-v="${i}">聘用</button>`);
-      });
+        <div class="slot-pity">
+          <span>🌟 5等名花保底 <b>${sl.pity}/${sDef.pityMax}</b></span>
+          <span class="vbar"><i class="gold" style="width:${pityPct}%"></i></span>
+        </div>
+        <div class="slot-reels">
+          <div class="slot-reel r${r0.r}${sl.locks[0] ? ' locked' : ''}">
+            <small>出身品级</small><i>${r0.icon}</i><b>${r0.cn}</b><span>${r0.sub}</span>
+            <button class="slot-lock${sl.locks[0] ? ' on' : ''}" data-a="slotLock" data-v="0" ${sDef.lockAllowed ? '' : 'disabled'}>${sl.locks[0] ? '🔒 已锁' : sDef.lockAllowed ? `🔓 锁(${fmShort(lockCost)})` : 'Lv.2解锁'}</button>
+          </div>
+          <div class="slot-reel${sl.locks[1] ? ' locked' : ''}">
+            <small>身材性格</small><i>${r1.icon}</i><b>${r1.cn}</b><span>匹配客群</span>
+            <button class="slot-lock${sl.locks[1] ? ' on' : ''}" data-a="slotLock" data-v="1" ${sDef.lockAllowed ? '' : 'disabled'}>${sl.locks[1] ? '🔒 已锁' : sDef.lockAllowed ? `🔓 锁(${fmShort(lockCost)})` : 'Lv.2解锁'}</button>
+          </div>
+          <div class="slot-reel${sl.locks[2] ? ' locked' : ''}">
+            <small>天生Buff</small><i>✨</i><b style="color:${r2.col}">${r2.cn}</b><span>阵容羁绊</span>
+            <button class="slot-lock${sl.locks[2] ? ' on' : ''}" data-a="slotLock" data-v="2" ${sDef.lockAllowed ? '' : 'disabled'}>${sl.locks[2] ? '🔒 已锁' : sDef.lockAllowed ? `🔓 锁(${fmShort(lockCost)})` : 'Lv.2解锁'}</button>
+          </div>
+        </div>
+        <button class="btn pri" data-a="slotSpin">${spinLabel}</button>
+      </div>`;
+
+      if (sl.pending) {
+        h += `<div class="lbl"><span>✨ 本次摇出候选（点击签约入当前门店）</span><span>可先重摇覆盖</span></div>`;
+        h += hCard(sl.pending, 'slot', l);
+      }
+      if (l.cands && l.cands.length) {
+        h += `<div class="lbl"><span>门外待聘新人</span><span>${l.cands.length}人</span></div>`;
+        l.cands.forEach((c, i) => { h += hCard(c, String(i), l); });
+      }
     } else {
       const bnc = l.bouncers || [];
       const shieldPct = bnc.length >= 2 ? 90 : bnc.length === 1 ? 55 : 0;
@@ -502,6 +585,59 @@ function updateMobileTabs() {
   nav.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.mtab === active));
 }
 
+export function showCodexModal(codexTab = G?._codexTab || 'girls') {
+  if (!G) return;
+  G._codexTab = codexTab;
+  const gMap = G.codexGirls || {};
+  const wMap = G.codexWhales || {};
+  const gCnt = LEGEND_GIRLS.filter((g) => gMap[g.id]).length;
+  const wCnt = WHALES.filter((w) => wMap[w.id]?.unlocked).length;
+  const gMile = girlMilestoneBonuses(gMap);
+
+  let body = '';
+  if (codexTab === 'girls') {
+    body += `<div class="codex-miles">${GIRL_MILESTONES.map((m) => {
+      const ok = gCnt >= m.count;
+      return `<div class="cmile${ok ? ' ok' : ''}"><b>${m.cn}</b><small>${m.bonusCn}</small></div>`;
+    }).join('')}</div>`;
+    body += `<div class="codex-grid">${LEGEND_GIRLS.map((lg) => {
+      const ok = !!gMap[lg.id];
+      if (!ok) {
+        return `<div class="codex-card locked">
+          <div class="cc-top">${avatar({ male: false, skin: '#CFC4AD', hair: '#8E897E', dress: '#B5B0A6', hs: 0 }, 36)}<div><b>??? · ${esc(lg.title)}</b><small>5等传奇名花 · 暂未收录</small></div></div>
+          <p class="cc-bio">通过「🎰 摇人」高阶招募机或保底 Jackpot 抽取解锁并点亮图鉴。</p>
+        </div>`;
+      }
+      return `<div class="codex-card ok">
+        <div class="cc-top">${avatar(Object.assign({}, lg, { rarity: 5, pop: 100 }), 36)}<div><b>${esc(lg.name)} <span class="r-badge r5">5等·名花</span></b><small>${esc(lg.title)} · ${BODY[lg.body]}·${PERS[lg.pers]}</small></div></div>
+        <div class="cc-traits">${lg.traits.map((tid) => `<span class="trait-pill" style="color:${TRAITS[tid].col}">${TRAITS[tid].cn}</span>`).join('')}</div>
+        <div class="cc-aura">✨ ${esc(lg.auraCn)}</div>
+        <p class="cc-bio">${esc(lg.bio)}</p>
+      </div>`;
+    }).join('')}</div>`;
+  } else {
+    body += `<div class="codex-grid">${WHALES.map((w) => {
+      const rec = wMap[w.id] || { visits: 0, unlocked: false };
+      const starsStr = '★'.repeat(Math.min(3, rec.visits || 0)) + '☆'.repeat(Math.max(0, 3 - (rec.visits || 0)));
+      return `<div class="codex-card${rec.unlocked ? ' ok' : ''}">
+        <div class="cc-top">${avatar({ male: true, skin: w.skin, hair: w.hair, shirt: w.shirt, ring: rec.unlocked ? '#9E6214' : '#6E5F50' }, 36)}<div><b>${esc(w.name)}</b><small>${esc(w.title)} · <span style="color:var(--gold)">${starsStr}</span> (${Math.min(3, rec.visits || 0)}/3)</small></div></div>
+        <div class="cc-aura">🎣 线索：${esc(w.clueCn)}</div>
+        <p class="cc-bio" style="color:${rec.unlocked ? 'var(--teal)' : 'var(--ink-2)'}"><b>${rec.unlocked ? '✓ ' : '🔒 '}</b>${esc(w.perkCn)}</p>
+      </div>`;
+    }).join('')}</div>`;
+  }
+
+  $('sheet').innerHTML = `<h2>📖 雅加达双图鉴馆</h2>
+    <p class="hand">名花已收集 ${gMile.count}/${LEGEND_GIRLS.length} 位 · 金主已满星 ${wCnt}/${WHALES.length} 位</p>
+    <div class="subtabs" style="margin:8px 0">
+      <button class="${codexTab === 'girls' ? 'on' : ''}" data-a="codexTab" data-v="girls">🌸 雅加达女子图鉴 (${gCnt}/${LEGEND_GIRLS.length})</button>
+      <button class="${codexTab === 'whales' ? 'on' : ''}" data-a="codexTab" data-v="whales">🎩 夜街金主图鉴 (${wCnt}/${WHALES.length})</button>
+    </div>
+    ${body}
+    <br><button class="btn pri" data-a="closeModal">关闭</button>`;
+  $('modal').classList.add('on');
+}
+
 export function showAchievementsModal() {
   const got = G?.achievements || [];
   $('sheet').innerHTML = `<h2>传奇成就（${got.length}/${ACHIEVEMENTS.length}）</h2>
@@ -520,6 +656,11 @@ export function live() {
   if (!G) return;
   if ($('hDay')) $('hDay').textContent = `D${G.day} · ${WD[wday(G.day)]}`;
   if ($('achCnt')) $('achCnt').textContent = String((G.achievements || []).length);
+  if ($('codexCnt')) {
+    const gc = LEGEND_GIRLS.filter((g) => G.codexGirls?.[g.id]).length;
+    const wc = WHALES.filter((w) => G.codexWhales?.[w.id]?.unlocked).length;
+    $('codexCnt').textContent = `${gc + wc}/${LEGEND_GIRLS.length + WHALES.length}`;
+  }
   renderBarPills();
   updateMobileTabs();
   if ($('hMoney')) $('hMoney').textContent = fm(G.money);
@@ -634,10 +775,17 @@ export function showBriefModal(news) {
   const lvl = m < 0.75 ? ['淡', '#6E5F50'] : m < 1.1 ? ['平', '#1F6E5A'] : ['旺', '#B5362F'];
   const asks = bars().flatMap((l) => l.hostesses).filter((h) => h.raiseAsk);
   const cards = renderEventCards();
+  const voices = G?.lastVoices || [];
+  const nextWhale = WHALES.find((w) => !(G?.codexWhales?.[w.id]?.unlocked));
   $('sheet').innerHTML = `<h2>D${G.day} · ${WD[wday(G.day)]}</h2>
     <p class="hand">客流预期：<b style="color:${lvl[1]}">${lvl[0]}</b>（${m.toFixed(2)}×）</p>
     ${cards}
-    ${wday(G.day) === 6 && bars().length ? `<p class="hand" style="color:var(--coral)">今晚需交保护费 ${fm(bars().reduce((a, l) => a + FEE(l), 0))}</p>` : ''}
+    ${wday(G.day) === 6 && bars().length ? `<p class="hand" style="color:var(--coral)">今晚需交保护费 ${fm(Math.round(bars().reduce((a, l) => a + FEE(l), 0) * whalePerkBonuses(G?.codexWhales).protectionMul))}</p>` : ''}
+    ${voices.length ? `<div class="lbl">🗣️ 昨夜客群真实心声</div>` + voices.map((vo) => `<div class="voice-card">
+      <div class="voice-head">${avatar({ male: true, skin: vo.skin, hair: vo.hair, shirt: vo.shirt }, 26)}<div><b>${esc(vo.who)}</b><small>${esc(vo.barName)}</small></div></div>
+      <p>${esc(vo.text)}</p><span>💡 ${esc(vo.hint)}</span>
+    </div>`).join('') : ''}
+    ${nextWhale ? `<div class="whale-clue-box">🎩 <b>金主悬赏线索 · ${esc(nextWhale.title)} ${esc(nextWhale.name)}</b><small>${esc(nextWhale.clueCn)}</small></div>` : ''}
     ${news.length ? `<div class="lbl">昨夜动态</div>` + news.map((t) => `<p style="margin:3px 0;font-size:12.5px">${t}</p>`).join('') : ''}
     ${asks.length ? `<div class="lbl">加薪申请</div>` + asks.map((h) => `<div class="kv" style="align-items:center"><span>${avatar(h, 28)} ${esc(h.name)} · ${fm(h.wage)}→${fm(h.raiseAsk)}</span><span><button class="tog on" data-a="raiseY" data-v="${h.id}">同意</button> <button class="tog" data-a="raiseN" data-v="${h.id}">拒绝</button></span></div>`).join('') : ''}
     ${G.goal < GOALS.length ? `<p class="hand" style="margin-top:8px">🎯 ${GOALS[G.goal].t} (+${fmShort(GOALS[G.goal].r)})</p>` : ''}

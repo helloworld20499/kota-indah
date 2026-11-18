@@ -1,8 +1,9 @@
 import {
   BARPAL, CONCEPTS, MAXH, SPECIAL_MENU, TRAIT_KEYS, TRAITS, clamp, fm, hWage, onDuty, pick,
 } from './config.js';
+import { whalePerkBonuses } from './codex.js';
 import { AU } from './audio.js';
-import { G, freeSpot, mkHostess, placeBouncer, placeH, resetBarDay } from './state.js';
+import { G, bars, freeSpot, mkHostess, placeBouncer, placeH, resetBarDay } from './state.js';
 import { barOpen, checkAchievements, checkGoals, leaveRival, trafMul } from './sim.js';
 
 export function setBarConcept(l, conceptId, payFn, toastFn, rebuildFn) {
@@ -75,7 +76,38 @@ export function trainHostess(l, hostessId, payFn, toastFn) {
   }
   h.wage = hWage(h);
   AU.sfx('level-up');
+  checkAchievements();
   toastFn(`${h.name} 特训完成：${msg.join('、')}`);
+  return true;
+}
+
+export function hireSlotPending(l, toastFn) {
+  const h = G?.slot?.pending;
+  const target = l && l.kind === 'mine' ? l : bars()[0];
+  if (!h || !target) {
+    toastFn?.('请先租下一家自己的酒吧，再签约公关入店');
+    return false;
+  }
+  if (target.hostesses.length >= MAXH) {
+    toastFn?.(`${target.name} 公关人数已满（最多 ${MAXH} 人）`);
+    return false;
+  }
+  G.slot.pending = null;
+  h.state = 'idle';
+  h.todayH = 0;
+  h.hidden = false;
+  h.on = true;
+  if (barOpen()) h.worked = true;
+  target.hostesses.push(h);
+  placeH(target, h);
+  if (h.legendId) {
+    G.codexGirls = G.codexGirls || {};
+    G.codexGirls[h.legendId] = true;
+  }
+  AU.sfx(h.rarity === 5 ? 'achievement' : 'pop-bubble');
+  checkGoals();
+  checkAchievements();
+  toastFn?.(`✨ 已签约 ${h.name}${h.title ? `（${h.title}）` : ''} 加入 ${target.name}！`);
   return true;
 }
 
@@ -112,6 +144,7 @@ export function applyShiftPreset(l, mode, toastFn) {
     }
   });
   AU.sfx('toggle-switch-on');
+  checkAchievements();
   const label = mode === 'smart' ? '智能客流班' : mode === 'rush' ? '周末全员冲刺' : '疲劳轮休保护';
   toastFn(`${label}：已排 ${l.hostesses.filter(onDuty).length} 人上班`);
 }
@@ -136,6 +169,7 @@ export function transferHostess(fromBar, hostessId, toBarIdx, toastFn) {
   toBar.hostesses.push(h);
   if (onDuty(h)) placeH(toBar, h);
   AU.sfx('pop-bubble');
+  checkAchievements();
   toastFn(`已将 ${h.name} 调往 ${toBar.name}`);
   return true;
 }
@@ -214,7 +248,8 @@ export function buyoutCost(l) {
   const wk = G?.rival?.[l.i]?.wk || 0;
   const raw = 42000 + l.L * l.D * 320 + wk * 0.35;
   const disc = G?.achievements?.includes('buyout_1') ? 0.9 : 1;
-  return Math.round((raw * disc) / 500) * 500;
+  const whaleDisc = whalePerkBonuses(G?.codexWhales).buyoutMul;
+  return Math.round((raw * disc * whaleDisc) / 500) * 500;
 }
 
 export function buyoutRival(l, payFn, toastFn, rebuildFn) {

@@ -724,25 +724,99 @@ button {
 .hc.off { opacity: 0.68; }
 .hc.compact { padding: 6px 8px; }
 
-.attr-line {
+/* Visual Attribute Bars, KPI-4 & Event Cards */
+.kpi-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+}
+.kpi-4 > div {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 6px;
+  text-align: center;
+}
+.kpi-4 small { display: block; font-size: 10px; color: var(--mute); line-height: 1.1; }
+.kpi-4 b {
+  display: block;
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-top: 1px;
+}
+
+.vbar {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: #E4DCC9;
+  border: 1px solid rgba(47, 38, 30, 0.22);
+  overflow: hidden;
+}
+.vbar > i { display: block; height: 100%; border-radius: 999px; transition: width 0.15s; }
+.vbar > i.coral { background: var(--coral); }
+.vbar > i.sky { background: var(--sky); }
+.vbar > i.teal { background: var(--teal); }
+.vbar > i.gold { background: #D4942A; }
+.vbar > i.purple { background: var(--purple); }
+
+.h-bars-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 4px;
+}
+.h-bar-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.h-bar-cell small {
+  font-size: 10px;
   font-weight: 600;
   color: var(--ink-2);
-  margin-top: 2px;
+  line-height: 1.1;
 }
-.stat-mini {
+
+.prob-bars {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 5px;
+}
+
+.s-bar-wrap {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-top: 3px;
-  font-family: var(--mono);
-  font-size: 10.5px;
-  font-weight: 600;
-  color: var(--ink-2);
+  gap: 5px;
+  margin-top: 2px;
 }
-.ebar { flex: 1; max-width: 68px; height: 5px; border-radius: 3px; background: #E3DAC6; overflow: hidden; }
-.ebar i { display: block; height: 100%; }
+.s-bar-wrap .vbar { width: 72px; }
+.s-bar-wrap small { font-family: var(--mono); font-size: 10px; font-weight: 600; color: var(--mute); }
+
+.ev-card-deck {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 5px;
+}
+.ev-card {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--card-hi);
+  border: 1.2px solid var(--line-ink);
+  border-left: 4px solid var(--evc, var(--coral));
+  border-radius: 8px;
+  padding: 5px 8px;
+  box-shadow: 1px 2px 0 rgba(47, 38, 30, 0.1);
+}
+.ev-card-ico { font-size: 16px; line-height: 1; flex: none; }
+.ev-card-body { min-width: 0; }
+.ev-card-body b { display: block; font-size: 11.5px; color: var(--ink); line-height: 1.2; }
+.ev-card-body small { display: block; font-family: var(--mono); font-size: 10px; font-weight: 600; color: var(--mute); line-height: 1.2; }
 
 .badge { display: inline-block; font-size: 10px; font-weight: 700; border-radius: 999px; padding: 0 6px; margin-left: 4px; }
 .b1 { background: #FCEBE9; color: var(--coral); border: 1px solid #E5A7A1; }
@@ -945,35 +1019,66 @@ input.nm:focus { outline: 0; border-bottom-color: var(--coral); }
 .skill-btn.active { background: #E2F2EC; border-color: var(--teal); color: var(--teal); }
 .skill-btn.cd { opacity: 0.48; cursor: not-allowed; }
 
+/* Storybook Tarot Sudden Live Event Card */
 .live-event {
   position: absolute;
-  right: 14px;
-  top: 56px;
-  width: min(300px, calc(100% - 28px));
+  left: 50%;
+  top: 14px;
+  transform: translateX(-50%);
+  width: min(352px, calc(100% - 28px));
   z-index: 15;
-  background: rgba(250, 245, 232, 0.96);
-  border: 1.5px solid var(--line-ink);
-  border-radius: 12px;
+  background: #FFFDF8;
+  border: 2px solid var(--line-ink);
+  border-radius: 14px;
   padding: 10px 12px;
-  box-shadow: 3px 4px 0 rgba(47, 38, 30, 0.18);
+  box-shadow: 4px 5px 0 rgba(47, 38, 30, 0.2);
 }
-.live-event h4 { margin: 0; font-size: 13.5px; color: var(--coral); display: flex; justify-content: space-between; align-items: center; }
-.live-event p { margin: 4px 0 7px; font-size: 12px; color: var(--ink-2); }
-.le-bar { height: 4px; background: #E3DAC6; border-radius: 2px; overflow: hidden; margin-bottom: 7px; }
+.le-stamp {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--coral);
+  letter-spacing: 0.04em;
+  margin-bottom: 5px;
+}
+.le-stamp small { font-family: var(--sans); color: var(--mute); font-weight: 600; }
+.le-hero {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 7px;
+}
+.le-hero i {
+  font-style: normal;
+  font-size: 28px;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: #F4EDE0;
+  border: 1.2px solid var(--line-ink);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.le-hero b { display: block; font-family: var(--serif); font-size: 15px; color: var(--ink); line-height: 1.2; }
+.le-hero small { display: block; font-size: 11.5px; color: var(--ink-2); margin-top: 2px; }
+.le-bar { height: 4px; background: #E3DAC6; border-radius: 2px; overflow: hidden; margin-bottom: 8px; }
 .le-bar i { display: block; height: 100%; background: var(--coral); transition: width 0.25s linear; }
+.ev-choice-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .le-opt {
   display: block;
   width: 100%;
   text-align: left;
-  padding: 6px 9px;
-  border-radius: 8px;
-  border: 1px solid var(--line);
+  padding: 7px 9px;
+  border-radius: 9px;
+  border: 1.2px solid var(--line);
   background: var(--card);
-  margin-top: 5px;
 }
 .le-opt b { display: block; font-size: 12px; color: var(--ink); }
-.le-opt small { display: block; font-size: 10.5px; color: var(--mute); }
-.le-opt.pri { border-color: var(--line-ink); background: #FBF3DF; }
+.le-opt small { display: block; font-size: 10px; color: var(--mute); margin-top: 2px; }
+.le-opt.pri { border-color: var(--line-ink); background: #FBF3DF; box-shadow: 1px 2px 0 rgba(47, 38, 30, 0.12); }
 
 select.xfer {
   background: var(--card);
@@ -1078,10 +1183,12 @@ select.xfer {
   .skill-btn { padding: 4px 7px; font-size: 11px; }
 
   .live-event {
-    right: 10px;
-    top: 132px;
+    left: 50%;
+    right: auto;
+    top: 112px;
+    transform: translateX(-50%);
     width: calc(100vw - 20px);
-    max-width: 340px;
+    max-width: 348px;
   }
 
   .side {

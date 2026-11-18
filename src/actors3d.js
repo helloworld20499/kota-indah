@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import { CT, GX, Lw, POLES, Z_SCALE, activeH, clamp, fm, tierOf } from './config.js';
+import { CT, GX, Lw, POLES, Z_SCALE, clamp, fmShort, tierOf } from './config.js';
 import {
   buildScooterGeometries, buildSedanGeometries,
   makePaperBodyTexture, makePaperHairTexture, makePaperHeadTexture,
 } from './meshes3d.js';
-import { cap } from './state.js';
+import { cap, curEls } from './state.js';
 import { barOpen, lit, skillActive } from './sim.js';
 
 const MAX_HUMANS = 768;
@@ -275,6 +275,52 @@ export class Actors3D {
     }
   }
 
+  _pushBartenders(state, l, now, zoom) {
+    const isOpen = lit(l);
+    const sway = isOpen ? Math.sin(now / 900 + l.i) * 0.16 : 0;
+    const ph = isOpen ? now / 240 + l.i : 0;
+    const shirt = l.kind === 'mine' ? '#2D3A4B' : '#6E2C2C';
+    const els = curEls(l);
+    const barEl = els.find((e) => e[0] === 'cbar' || e[0] === 'bar');
+    const spots = [];
+
+    if (barEl) {
+      const [t, a, b, c2, d] = barEl;
+      const uMid = (a + c2) / 2;
+      const vMid = (b + d) / 2;
+      if (t === 'cbar' || barEl[5]) {
+        const vPos = Math.max(0.28, b - 0.25);
+        const span = c2 - a;
+        if (span >= 3.2 || (l.seats || 0) >= 2) {
+          spots.push([uMid - 0.55 + sway * 0.6, vPos], [uMid + 0.55 - sway * 0.6, vPos]);
+        } else {
+          spots.push([uMid + sway, vPos]);
+        }
+      } else {
+        const span = c2 - a;
+        if (span >= 2.8) {
+          spots.push([uMid - 0.82, vMid + sway * 0.5]);
+          if (isOpen) spots.push([uMid + 0.82, vMid - sway * 0.5]);
+        } else {
+          spots.push([uMid + sway * 0.4, vMid + (d - b) * 0.24]);
+        }
+      }
+    } else {
+      spots.push([l.L * 0.5 + sway, 0.45]);
+    }
+
+    for (let i = 0; i < spots.length; i++) {
+      const [cx, cy] = Lw(l, spots[i][0], spots[i][1]);
+      this._pushHuman(
+        state, cx, cy, 2.6, ph + i * 1.4, false,
+        shirt, '#241C15', '#D7A47C', '#241C15', false, null, false, false,
+      );
+      if (i === 0 && l.kind === 'mine' && zoom > 2.1) {
+        this._pushHud(state, cx, 1.85, cy, '🍸 吧台', 'tag');
+      }
+    }
+  }
+
   _pushGlow(state, x, z, radius, hex, y = 0.12) {
     if (state.gCount >= MAX_GLOWS) return;
     const gi = state.gCount++;
@@ -344,8 +390,7 @@ export class Actors3D {
     for (let i = 0; i < G.lots.length; i++) {
       const l = G.lots[i];
       if (l.kind === 'mine') {
-        const [cx, cy] = Lw(l, (l.L * 2.3) / 5, (l.D * 0.3) / 6);
-        this._pushHuman(state, cx, cy, 0, 0, false, '#F0E8D6', '#2b211b', '#D7A47C', '#2a2420', false, null, false, false);
+        this._pushBartenders(state, l, now, zoom);
         if (l.dj) {
           const [dx, dy] = Lw(l, l.L - 0.8, l.D - 1.55);
           this._pushHuman(state, dx, dy, 0, barOpen() ? now / 180 : 0, false, '#3F4A5A', '#1f1a18', '#C99670', '#242026', false, barOpen() ? '#ff52d9' : null, false, barOpen());
@@ -372,6 +417,7 @@ export class Actors3D {
           if (zoom > 1.75) this._pushHud(state, h.x, 1.35 + (h.lift || 0) * Z_SCALE * 0.6, h.y, h.name, 'name');
         }
       } else if (l.kind === 'rival') {
+        this._pushBartenders(state, l, now, zoom);
         for (let hIdx = 0; hIdx < l.hs.length; hIdx++) {
           const h = l.hs[hIdx];
           this._pushHuman(state, h.x, h.y + (h.sit ? 0.05 : 0), h.lift, h._ph, h.sit, h.dress, h.hair, h.skin, h.dress, h.body === 'curvy', null, true, false);
@@ -584,16 +630,16 @@ export class Actors3D {
         const l = G.lots[i];
         if (l.top) continue;
         const c = Lw(l, l.L / 2, l.D / 2);
-        let label = `${l.name} · ${lit(l) ? '营业' : '打烊'}`;
+        let label = `${l.name}`;
         let cls = 'shop-lbl';
         if (l.kind === 'empty') {
-          label = `空铺 · ${fm(l.cost)}`;
+          label = `招租 · ${fmShort(l.cost)}`;
           cls = 'shop-lbl empty';
         } else if (l.kind === 'mine') {
-          label = `★ ${l.name} · 客 ${l._g.length}/${cap(l)} · 公关 ${activeH(l).length}`;
+          label = `★ ${l.name} · ${l._g.length}/${cap(l)}`;
           cls = 'shop-lbl mine';
         } else if (l.kind === 'rival') {
-          label = `${l.name} · ${lit(l) ? `客 ${l._g.length}/${cap(l)} · ` : ''}公关 ${l.hn}`;
+          label = `${l.name} · ${lit(l) ? `${l._g.length}/${cap(l)}` : '打烊'}`;
         }
         this._pushHud(state, c[0], 2.45, c[1], label, cls, onSelectLot ? () => onSelectLot(l.i) : null);
       }

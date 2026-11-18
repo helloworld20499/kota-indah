@@ -384,18 +384,18 @@ function initUIEvents() {
   });
 
   const QMODES = ['auto', 'high', 'medium', 'low'];
-  const QLABELS = { auto: '画质:Auto', high: '画质:高', medium: '画质:中', low: '画质:省电' };
+  const QLABELS = { auto: '✨Auto', high: '✨高', medium: '✨中', low: '✨省' };
   $('btnQual')?.addEventListener('click', (e) => {
     AU.sfx('click-soft-tap');
     const nextIdx = (QMODES.indexOf(scene3d.qualityMode) + 1) % QMODES.length;
     const mode = QMODES[nextIdx];
     scene3d.setQualityMode(mode);
     e.currentTarget.textContent = QLABELS[mode];
-    toast(`3D 画质已切至 ${QLABELS[mode].slice(3)}（当前渲染：${scene3d.effectiveQuality}）`);
+    toast(`画质：${QLABELS[mode].replace('✨', '')}`);
   });
 
   const LMODES = Object.keys(LIGHT_MODES);
-  const LLABELS = { bright: '💡 夜景:明亮', cozy: '💡 夜景:氛围', day: '☀️ 白昼常亮' };
+  const LLABELS = { bright: '💡 明亮', cozy: '💡 氛围', day: '☀️ 白昼' };
   const btnLight = $('btnLight');
   if (btnLight) {
     btnLight.textContent = LLABELS[scene3d.lightMode] || LLABELS.bright;
@@ -405,7 +405,7 @@ function initUIEvents() {
       const mode = LMODES[idx];
       scene3d.setLightMode(mode);
       e.currentTarget.textContent = LLABELS[mode];
-      toast(`光照模式：${LLABELS[mode].replace(/^[^\s]+\s*/, '')}`);
+      toast(`光照：${LLABELS[mode].replace(/^[^\s]+\s*/, '')}`);
     });
   }
 

@@ -22,20 +22,19 @@
 <body>
 <header class="top">
   <div class="brand">
-    <svg width="26" height="26" viewBox="0 0 30 30" fill="none" stroke="#B5362F" stroke-width="1.8" stroke-linecap="round"><path d="M8 5h14l-2 9a5 5 0 0 1-10 0z"/><path d="M15 19v6M10 25h10"/></svg>
-    <div><b>Kota Indah 夜街</b><i>Jl. Komp. Ruko Kota Indah · 手绘夜街经营</i></div>
+    <svg width="24" height="24" viewBox="0 0 30 30" fill="none" stroke="#B5362F" stroke-width="1.8" stroke-linecap="round"><path d="M8 5h14l-2 9a5 5 0 0 1-10 0z"/><path d="M15 19v6M10 25h10"/></svg>
+    <div><b>Kota Indah 夜街</b></div>
   </div>
   <div class="bar-pills" id="barPills"></div>
   <div class="chip"><span id="hDay"></span></div>
-  <div class="chip ev" id="hEv" style="display:none"></div>
-  <div class="chip" id="hMoneyChip"><small>现金</small><span id="hMoney"></span></div>
-  <button class="btn-skip" id="btnSkipOpen" style="display:none">⏭ 跳至 17:00 开门</button>
+  <div class="chip" id="hMoneyChip"><span id="hMoney"></span></div>
+  <button class="btn-skip" id="btnSkipOpen" style="display:none">⏭ 17:00 开门</button>
   <div class="speed" id="speed">
     <button data-s="0" aria-label="暂停">❚❚</button><button data-s="1">1×</button><button data-s="2">2×</button><button data-s="4">4×</button><button data-s="8">8×</button>
   </div>
   <div class="aud">
-    <button id="btnAch" class="pill-ico" title="夜街成就墙">🏆 <span id="achCnt">0</span></button>
-    <button id="btnQual" class="pill-ico" title="切换 3D 画质 (Auto/高/中/省电)">画质:Auto</button>
+    <button id="btnAch" class="pill-ico" title="成就墙">🏆 <span id="achCnt">0</span></button>
+    <button id="btnQual" class="pill-ico" title="切换 3D 画质 (Auto/高/中/省电)">✨Auto</button>
     <button id="auM" aria-label="音乐"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 12V3l7-1.5V10.5"/><circle cx="4.3" cy="12" r="1.8"/><circle cx="11.3" cy="10.5" r="1.8"/><path class="x" d="M2 2l12 12"/></svg></button>
     <button id="auS" aria-label="音效"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6h2.5L8 3v10L4.5 10H2z"/><path d="M10.5 5.5a3.5 3.5 0 0 1 0 5M12.5 3.5a6.3 6.3 0 0 1 0 9"/><path class="x" d="M2 2l12 12"/></svg></button>
   </div>
@@ -67,15 +66,14 @@
 
     <div class="hud-top-left">
       <h1 id="ttl">Kota Indah 3D</h1>
-      <div class="sub" id="subttl"></div>
       <div class="hud-clock" id="hClock"></div>
     </div>
 
     <div class="cam-tools">
       <button id="zall" style="display:none">← 全景</button>
-      <button id="btnLight" title="切换夜景亮度 (明亮/氛围/白昼)">💡 夜景:明亮</button>
-      <button id="btnRot" title="旋转视角 90° (R)">↻ 旋转 90°</button>
-      <button id="btnCut" class="on" title="自动透视遮挡墙体">透视墙体</button>
+      <button id="btnLight" title="切换夜景亮度 (明亮/氛围/白昼)">💡 明亮</button>
+      <button id="btnRot" title="旋转视角 90° (R)">↻ 90°</button>
+      <button id="btnCut" class="on" title="自动透视遮挡墙体">🧱 透视</button>
     </div>
 
     <div class="live-event" id="liveEventCard" style="display:none"></div>

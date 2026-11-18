@@ -55,13 +55,13 @@ export function trainHostess(l, hostessId, payFn, toastFn) {
   const msg = [];
   if (h.looks < 10 && (h.looks <= h.att || h.att >= 10)) {
     h.looks = Math.min(10, h.looks + 1);
-    msg.push('样貌 +1');
+    msg.push('外在形象提升');
   } else if (h.att < 10) {
     h.att = Math.min(10, h.att + 1);
-    msg.push('态度 +1');
+    msg.push('待客气质精进');
   } else {
     h.mood = 100;
-    msg.push('气质拉满，心情 100');
+    msg.push('状态拉满');
   }
 
   h.traits = h.traits || [];

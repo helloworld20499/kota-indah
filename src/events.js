@@ -48,10 +48,10 @@ const LIVE_TEMPLATES = [
   {
     id: 'rich_champagne',
     icon: '🍾',
-    title: '阔少摆阔斗酒',
-    desc: '卡座上一桌豪客喝嗨了，正跟朋友比谁更有排面！',
-    optA: { label: '推销黄金香槟塔', hint: '72% 大赚 Rp 600k + 口碑，小概率嫌贵' },
-    optB: { label: '赠送果盘助兴 (-Rp 80k)', hint: '稳妥拉满好感，必增回头客' },
+    title: '豪客斗酒',
+    desc: '卡座阔少正比拼排面',
+    optA: { label: '推香槟塔', hint: '72% +600k · 口碑↑' },
+    optB: { label: '赠果盘', hint: '-80k · 必得熟客' },
     resolve(choice, l, toastFn, confettiFn) {
       if (choice === 'A') {
         if (Math.random() < 0.72) {
@@ -61,13 +61,13 @@ const LIVE_TEMPLATES = [
           G.fx.push({ x: (l.x0 + l.x1) / 2, y: (l.y0 + l.y1) / 2, z: 16, t: '+600k 🍾', life: 6, col: '#E8B959' });
           confettiFn?.((l.x0 + l.x1) / 2, (l.y0 + l.y1) / 2, 2.2);
           AU.sfx('coin-double');
-          toastFn(`${l.name}：豪客爽快开了黄金香槟塔，净赚 +Rp 600k！`);
+          toastFn(`${l.name}：豪客爽快开了香槟塔，+Rp 600k！`);
         } else {
           G.money += 80;
           l.today.drink += 80;
           l.hostesses.forEach((h) => { if (h.on) h.mood = clamp(h.mood - 2, 0, 100); });
           AU.sfx('pop-bubble');
-          toastFn(`${l.name}：客人觉得香槟太贵，改点了两瓶啤酒 (+Rp 80k)`);
+          toastFn(`${l.name}：客人嫌贵改点啤酒 (+Rp 80k)`);
         }
       } else {
         G.money -= 80;
@@ -76,17 +76,17 @@ const LIVE_TEMPLATES = [
         G.regs.push({ id: 'ev' + Date.now(), type: 'local', bar: l.i, n: 1, pers: 'extro', daily: true, pr: 0.75 });
         l.today.newRegs++;
         AU.sfx('confirm-unlock');
-        toastFn(`${l.name}：赠送果盘赢得好评，这桌客人成了回头客！`);
+        toastFn(`${l.name}：赠果盘获好评，熟客 +1`);
       }
     },
   },
   {
     id: 'drunk_harass',
     icon: '💢',
-    title: '醉客纠缠公关',
-    desc: '门口附近有个喝多的大汉对公关动手动脚，周围客人在围观！',
-    optA: { label: '派保安请出场外', hint: '有保安则完美解围(+心情+口碑)；无保安会丢口碑' },
-    optB: { label: '老板亲自敬酒赔礼 (-Rp 150k)', hint: '稳妥花钱息事宁人' },
+    title: '醉汉闹事',
+    desc: '醉客纠缠公关引围观',
+    optA: { label: '保安清场', hint: '有保安 心情↑ / 无 口碑↓' },
+    optB: { label: '敬酒息事', hint: '-150k · 平息' },
     resolve(choice, l, toastFn) {
       if (choice === 'A') {
         if ((l.bouncers || []).length > 0) {
@@ -95,12 +95,12 @@ const LIVE_TEMPLATES = [
           l.today.bounced = (l.today.bounced || 0) + 1;
           G.stats.totalBounced = (G.stats.totalBounced || 0) + 1;
           AU.sfx('confirm-unlock');
-          toastFn(`🛡️ ${l.name} 的保安果断请出闹事醉汉，公关们安全感拉满 (+10 心情)！`);
+          toastFn(`🛡️ ${l.name} 保安清场成功，全员心情上升`);
         } else {
           l.rep = Math.max(1, l.rep - 0.12);
           l.hostesses.forEach((h) => { if (h.on) h.mood = clamp(h.mood - 8, 0, 100); });
           AU.sfx('error-soft-thud');
-          toastFn(`${l.name} 没有保安镇场，好不容易才劝走醉汉，公关受了委屈 (-8 心情)`);
+          toastFn(`${l.name} 无保安镇场，公关受委屈`);
         }
       } else {
         G.money -= 150;
@@ -108,17 +108,17 @@ const LIVE_TEMPLATES = [
         l.rep = Math.min(5, l.rep + 0.03);
         l.hostesses.forEach((h) => { if (h.on) h.mood = clamp(h.mood - 4, 0, 100); });
         AU.sfx('pop-bubble');
-        toastFn(`${l.name}：老板出面送酒赔礼，花 Rp 150k 平息风波`);
+        toastFn(`${l.name}：老板敬酒息事 (-Rp 150k)`);
       }
     },
   },
   {
     id: 'jakarta_blogger',
     icon: '📱',
-    title: '雅加达探店博主进店',
-    desc: '本地热门夜生活 IG 博主带摄影师进店打卡，询问有没有老板招待！',
-    optA: { label: '免单 VIP 招待 (-Rp 500k)', hint: '本店口碑 +0.25，明日全街人气 +35%！' },
-    optB: { label: '按普通客人正常接待', hint: '稳收正常酒水钱 (+Rp 140k)' },
+    title: '博主探店',
+    desc: '夜生活博主进店打卡',
+    optA: { label: '免单招待', hint: '-500k · 明日人气+35%' },
+    optB: { label: '正常接待', hint: '+140k 酒水' },
     resolve(choice, l, toastFn) {
       if (choice === 'A') {
         G.money -= 500;
@@ -126,22 +126,22 @@ const LIVE_TEMPLATES = [
         l.rep = Math.min(5, l.rep + 0.25);
         G.ev.nextBloggerBoost = true;
         AU.sfx('achievement');
-        toastFn(`📱 探店博主疯狂点赞 ${l.name}！明天全街人气将暴涨 +35%！`);
+        toastFn(`📱 博主点赞 ${l.name}，明日全街人气 +35%！`);
       } else {
         G.money += 140;
         l.today.drink += 140;
         AU.sfx('coin-collect');
-        toastFn(`${l.name} 正常接待了博主一行，收入酒水 +Rp 140k`);
+        toastFn(`${l.name} 正常接待，+Rp 140k`);
       }
     },
   },
   {
     id: 'vip_regular_favor',
     icon: '💎',
-    title: '老熟客求插队包厢',
-    desc: '常客带了几个商务朋友来，想马上安排一间包厢和一位红牌公关！',
-    optA: { label: '优先协调包厢接待', hint: '若有空包厢获 +Rp 450k 小费 + 回头客' },
-    optB: { label: '抱歉请按先来后到', hint: '送两杯迎宾酒 (+Rp 60k)，礼貌婉拒' },
+    title: '熟客求包厢',
+    desc: '常客带朋友想插队包厢',
+    optA: { label: '腾出包厢', hint: '有空房 +450k · 熟客+1' },
+    optB: { label: '迎宾婉拒', hint: '+60k · 稳妥' },
     resolve(choice, l, toastFn) {
       if (choice === 'A') {
         if (l.roomsUsed < ROOMS[l.rooms || 0]) {
@@ -152,17 +152,17 @@ const LIVE_TEMPLATES = [
           l.today.newRegs++;
           G.fx.push({ x: (l.x0 + l.x1) / 2, y: (l.y0 + l.y1) / 2, z: 15, t: '+450k 💎', life: 6, col: '#E8B959' });
           AU.sfx('coin-double');
-          toastFn(`💎 熟客很给面子！额外打赏 ${fm(450)} 并带来新回头客！`);
+          toastFn(`💎 熟客打赏 ${fm(450)}，带来新熟客！`);
         } else {
           l.rep = Math.max(1, l.rep - 0.06);
           AU.sfx('error-soft-thud');
-          toastFn(`${l.name} 楼上包厢全满了，熟客有点扫兴地走了`);
+          toastFn(`${l.name} 包厢已满，熟客扫兴离开`);
         }
       } else {
         G.money += 60;
         l.today.drink += 60;
         AU.sfx('pop-bubble');
-        toastFn(`熟客理解店里规矩，喝了两杯就先去大厅了 (+Rp 60k)`);
+        toastFn(`熟客入座大厅 (+Rp 60k)`);
       }
     },
   },

@@ -121,12 +121,12 @@ export function trafMul() {
 export function evList() {
   const e = G.ev || {};
   const o = [];
-  if (e.rain) o.push(['下雨', '今晚客流减半左右', '#5B7FA6']);
-  if (e.holiday) o.push(['节日', `台客中客翻倍，客流 ×1.25（还剩 ${e.holiday} 天）`, '#B0457F']);
-  if (e.ramadan) o.push(['斋月', `客流大减，土著很少出来（还剩 ${e.ramadan} 天）`, '#3F8F7B']);
-  if (e.payday) o.push(['工厂发薪', '土著更多、更舍得花', '#D9A441']);
-  if (e.bloggerBoost) o.push(['探店爆火', '昨晚探店博主发帖，今晚全街人气 +35%', '#E8B959']);
-  if (e.razia && e.rumor && !e.raziaDone) o.push(['有风声', '今晚可能有警察临检', '#B5362F']);
+  if (e.rain) o.push(['暴雨夜', '客流 ×0.55', '#4A6B8A', '🌧️']);
+  if (e.holiday) o.push(['假日潮', `客流 ×1.25 · ${e.holiday}天`, '#9E4770', '🏮']);
+  if (e.ramadan) o.push(['斋月期', `客流 ×0.5 · ${e.ramadan}天`, '#2D7A66', '🌙']);
+  if (e.payday) o.push(['发薪日', '土客 ×1.2', '#B87D1E', '💵']);
+  if (e.bloggerBoost) o.push(['探店热', '人气 +35%', '#C86D2D', '📱']);
+  if (e.razia && e.rumor && !e.raziaDone) o.push(['有风声', '警惕临检', '#B5362F', '🚨']);
   return o;
 }
 
@@ -675,7 +675,7 @@ export function startSession(p, l, best, pk, act) {
   best.todayFee = (best.todayFee || 0) + fee;
   const enCost = hours * (act === 'with' ? 9 : 13) * (hasTrait(best, 'stamina') ? 0.7 : 1);
   best.en = Math.max(0, best.en - Math.min(60, enCost));
-  best.pop += Math.round(hours) + (pk.h === 99 ? 3 : 0);
+  best.pop += pk.h === 99 ? 2 : 1;
   freeSpot(l, best);
   best.state = act;
   best.with = p;
@@ -795,6 +795,8 @@ function vipDecide(p, l) {
 export function review(p, h, l, s) {
   const ea = effAtt(h);
   const t = ea >= 8 ? '服务很贴心' : ea >= 6 ? '挺会聊天' : ea >= 4 ? '一般般' : '态度有点冷';
+  const popDelta = ea >= 8 && s >= 7 ? 3 : ea >= 6 && s >= 5.8 ? 2 : ea >= 4 && s >= 4.8 ? 1 : ea <= 3 && s < 4.5 ? -1 : 0;
+  h.pop = Math.max(0, (h.pop || 0) + popDelta);
   h.mood = clamp(h.mood + (s >= 7 ? 2 : s < 4.5 ? -3 : 0), 0, 100);
   h.reviews.unshift(`${CT[p.ctype].cn}：${t}`);
   h.reviews.length = Math.min(3, h.reviews.length);

@@ -102,7 +102,7 @@ function makeMockElement(id = '', tag = 'div') {
   };
 }
 
-const domIds = ['panel', 'panelWrap', 'sheet', 'modal', 'toast', 'hDay', 'hEv', 'hMoney', 'hMoneyChip', 'tdot', 'speed', 'zall', 'ttl', 'subttl', 'hClock', 'auM', 'auS', 'btnSkipOpen', 'world-hud', 'barPills', 'skillDock', 'liveEventCard', 'btnQual', 'btnAch', 'achCnt', 'mobTabs', 'sheetGrabber', 'btnLight'];
+const domIds = ['panel', 'panelWrap', 'sheet', 'modal', 'toast', 'hDay', 'hMoney', 'hMoneyChip', 'tdot', 'speed', 'zall', 'ttl', 'hClock', 'auM', 'auS', 'btnSkipOpen', 'world-hud', 'barPills', 'skillDock', 'liveEventCard', 'btnQual', 'btnAch', 'achCnt', 'mobTabs', 'sheetGrabber', 'btnLight'];
 const elements = new Map(domIds.map((id) => [id, makeMockElement(id)]));
 
 const storeMap = new Map();
@@ -239,6 +239,11 @@ const actors3d = new Actors3D(fakeScene3D, elements.get('world-hud'));
 assert(actors3d.carTrimMesh.geometry.attributes.color != null, 'carTrimMesh missing vertex color');
 assert(actors3d.motoDetailMesh.geometry.attributes.color != null, 'motoDetailMesh missing vertex color');
 
+// Verify every bar counter has visible bartenders even at 14:30 before street traffic spawns
+actors3d.update(G0, 0.016);
+const rivalCount = G0.lots.filter((l) => l.kind === 'rival').length;
+assert(actors3d.paperBodyMesh.count >= rivalCount + 4, `Expected >= ${rivalCount + 4} bartenders/staff at opening, got ${actors3d.paperBodyMesh.count}`);
+
 // Run 7-day sim & verify Actors3D across Afternoon, Night, Rain, and Raid
 const simSummary = simHeadlessDays(7);
 const G2 = state.G;
@@ -272,13 +277,18 @@ const assertPanelValid = (label) => {
 };
 
 G2.view = null;
+G2.ev.rain = true;
 for (const st of ['mine', 'empty', 'rival']) {
   G2.streetTab = st;
   ui.renderPanel();
   assertPanelValid(`street:${st}`);
+  assert(panelEl.innerHTML.includes('ev-card'), `Missing event card in street:${st}`);
 }
 assert(panelEl.innerHTML.includes('公关'), 'Missing rival hostess count in street rival panel');
 
+// Verify hidden attitude drives pop gain via review()
+const { review } = await import('../src/sim.js');
+const { CT } = await import('../src/config.js');
 const myBars = G2.lots.filter((l) => l.kind === 'mine');
 if (myBars.length) {
   const b = myBars[0];
@@ -291,6 +301,13 @@ if (myBars.length) {
   assert(b.menu.champagne);
   const h0 = b.hostesses[0] || mkHostess(5);
   if (!b.hostesses.length) { b.hostesses.push(h0); placeH(b, h0); }
+  const hHi = Object.assign(mkHostess(5), { att: 9, en: 90, mood: 80, pop: 0 });
+  const hLo = Object.assign(mkHostess(5), { att: 2, en: 90, mood: 80, pop: 0 });
+  const mockGuest = { ctype: 'local', prefPers: 'extro', x: b.x0 + 1, y: b.y0 + 1, ph: 0 };
+  review(mockGuest, hHi, b, 8.2);
+  review(mockGuest, hLo, b, 4.0);
+  assert(hHi.pop > hLo.pop, `Expected high-attitude hostess pop (${hHi.pop}) > low-attitude (${hLo.pop})`);
+
   assert(econ.giveHongbao(b, h0.id, pay, noop));
   assert(h0.loyalUntil > G2.day);
   assert(econ.trainHostess(b, h0.id, pay, noop));
@@ -322,8 +339,9 @@ if (myBars.length) {
   assert(evMod.activateSkill(bAfterLoad, 'happyHour', pay, noop));
   assert(evMod.activateSkill(bAfterLoad, 'lowProfile', pay, noop));
   bAfterLoad._g.push({ id: 'mockg' });
-  const le = evMod.triggerLiveEvent(noop);
-  assert(le && evMod.resolveLiveEvent('A', noop, noop, noop));
+  const le = evMod.triggerLiveEvent(ui.renderLiveEvent);
+  assert(le && elements.get('liveEventCard').innerHTML.includes('ev-choice-grid'), 'Expected live event card choice grid');
+  assert(evMod.resolveLiveEvent('A', noop, noop, noop));
   bAfterLoad._g.pop();
 
   state.G.view = bAfterLoad.i;
@@ -333,16 +351,23 @@ if (myBars.length) {
       state.G.girlSub = 'roster';
       ui.renderPanel();
       assertPanelValid('bar:girls:roster');
+      assert(panelEl.innerHTML.includes('class="vbar"'), 'Expected visual attribute bars on roster');
+      assert(!panelEl.innerHTML.includes('态 '), 'Hidden attitude leaked on roster');
       state.G.girlSub = 'cands';
       ui.renderPanel();
       assertPanelValid('bar:girls:cands');
+      assert(panelEl.innerHTML.includes('class="vbar"'), 'Expected visual attribute bars on candidates');
+      assert(!panelEl.innerHTML.includes('态 '), 'Hidden attitude leaked on candidates');
     } else {
       ui.renderPanel();
       assertPanelValid(`bar:${tab}`);
+      if (tab === 'scout') assert(!panelEl.innerHTML.includes('态度'), 'Hidden attitude preference leaked in scout tab');
     }
   }
 }
+G2.ev.rain = true;
 ui.showBriefModal(['测试简报']);
+assert(elements.get('sheet').innerHTML.includes('ev-card'), 'Expected event card in daily brief modal');
 ui.showAchievementsModal();
 ui.showEndDayModal({
   hf: 1200, dr: 800, cogs: 200, hw: 500, hc: 540, sw: 200, rent: 400,
